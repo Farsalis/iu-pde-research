@@ -1,4 +1,7 @@
-"""Initial condition reconstruction algorithms for PDE."""
+"""Initial temperature profile reconstruction algorithms for PDE.
+
+NOTE: We represent functions using numpy arrays NDArray[any] in order to use numpy's vectorized operations.
+"""
 
 import numpy as np
 from scipy.integrate import quad
@@ -37,14 +40,14 @@ def compute_modified_t_j(
     if f_true is None:
         f_true = get_default_f_true
 
-    t_vec = compute_t_vec(n, T)
+    t_vec = compute_t_vec(n, T)  # Compute t_k as a vector and then optimize
 
-    n_terms = 20
+    n_terms = 20  # Number of measurements from sensor
     j_vals = np.arange(1, n_terms + 1)
-    f_hat_vals = np.array([get_f_hat_true(j, f_true) for j in j_vals])
+    f_hat_vals = np.array([get_f_hat_true(j, f_true) for j in j_vals])  # Generating j true Fourier coefficients
     j_squared = j_vals**2
     sin_j_x0 = np.sin(j_vals * x0)
-    exp_matrix = np.exp(-np.outer(t_vec, j_squared))
+    exp_matrix = np.exp(-np.outer(t_vec, j_squared))  # Computing dot product since these are arrays
     u_data = np.sum(exp_matrix * f_hat_vals * sin_j_x0, axis=1)
 
     bar_f_hat = np.zeros(int(np.ceil(n / 2)))
@@ -52,7 +55,7 @@ def compute_modified_t_j(
     max_k = len(bar_f_hat)
     j_squared_cache = np.arange(1, max_k + 1)**2
 
-    for k in range(1, max_k + 1):
+    for k in range(1, max_k + 1):  # Amount of terms we reconstruct based on bar_f_hat
         tk = t_vec[k - 1]
         if k == 1:
             bar_f_hat[0] = np.exp(tk) * u_data[0] / sin_k_x0[0]
@@ -72,7 +75,7 @@ def compute_modified_t_j(
     bar_f_n_vals = sin_matrix @ bar_f_hat
     f_true_vals = f_true(x_grid)
 
-    return f_true_vals, bar_f_n_vals
+    return f_true_vals, bar_f_n_vals  # True measurements and reconstructed measurements
 
 
 def compute_modified_t_j_nonhomogeneous(
@@ -109,11 +112,13 @@ def compute_modified_t_j_nonhomogeneous(
     n_terms = 20
     j_vals = np.arange(1, n_terms + 1)
 
-    if abs(L - np.pi) < 1e-10:
+    # Synthetic measurements representing those from sensor for (x0, t_k)
+    if abs(L - np.pi) < 1e-10:  # Equal to pi
         f_hat_vals = np.array([
             quad(lambda x: f_true(x) * np.sin(j * x), 0, L)[0] * 2 / L
             for j in j_vals
         ])
+
         j_squared = j_vals**2
         sin_j_x0 = np.sin(j_vals * x0)
     else:
@@ -121,12 +126,15 @@ def compute_modified_t_j_nonhomogeneous(
             quad(lambda x: f_true(x) * np.sin(j * np.pi * x / L), 0, L)[0] * 2 / L
             for j in j_vals
         ])
+
         j_squared = (j_vals * np.pi / L)**2
         sin_j_x0 = np.sin(j_vals * np.pi * x0 / L)
 
+    # Compute homogeneous part of NH case
     exp_matrix = np.exp(-np.outer(t_vec, j_squared))
     u_homogeneous = np.sum(exp_matrix * f_hat_vals * sin_j_x0, axis=1)
 
+    # Compute forcing contribution to u(x0, t_k)
     if F is not None:
         u_forcing = np.array([
             compute_forcing_contribution_at_time(F, tk, x0, n_terms, L)
@@ -136,8 +144,10 @@ def compute_modified_t_j_nonhomogeneous(
     else:
         u_data = u_homogeneous
 
+    # Apply homogeneous reconstruction algorithm, getting rid of forcing contributions
     bar_f_hat = np.zeros(int(np.ceil(n / 2)))
     max_k = len(bar_f_hat)
+
     if abs(L - np.pi) < 1e-10:
         sin_k_x0 = np.sin(np.arange(1, max_k + 1) * x0)
         k_squared_cache = np.arange(1, max_k + 1)**2
@@ -154,6 +164,7 @@ def compute_modified_t_j_nonhomogeneous(
                 forcing_contrib = compute_forcing_contribution_at_time(
                     F, tk, x0, n_terms, L
                 )
+
                 u_data_k = u_data_k - forcing_contrib
 
             c_bar_1 = np.exp(k_squared_cache[0] * tk) * u_data_k
@@ -169,23 +180,26 @@ def compute_modified_t_j_nonhomogeneous(
                 forcing_contrib = compute_forcing_contribution_at_time(
                     F, tk, x0, n_terms, L
                 )
+
                 u_data_k = u_data_k - forcing_contrib
 
             c_bar_k = np.exp(k_squared_cache[k - 1] * tk) * (u_data_k - sum_prev)
             bar_f_hat[k - 1] = c_bar_k / sin_k_x0[k - 1]
 
     k_vals = np.arange(1, len(bar_f_hat) + 1)
+
     if abs(L - np.pi) < 1e-10:
         sin_matrix = np.sin(np.outer(x_grid, k_vals))
     else:
         sin_matrix = np.sin(np.outer(x_grid, k_vals * np.pi / L))
-    bar_f_n_vals = sin_matrix @ bar_f_hat
+
+    bar_f_n_vals = sin_matrix @ bar_f_hat  # Take regular dot product of NDArrays
     f_true_vals = f_true(x_grid)
 
     return f_true_vals, bar_f_n_vals
 
 
-def linear_sequence_reconstruction(
+def compute_linear_t_j_homogeneous(
     n: int,
     t0: float,
     x0: float,
@@ -220,16 +234,19 @@ def linear_sequence_reconstruction(
         """Compute Fourier coefficient for mode j."""
         integrand = lambda x: f_true(x) * np.sin(j * x)
         result, _ = quad(integrand, 0, np.pi)
+
         return result * 2 / np.pi
 
     def u_xtk(x0, t_k, n_terms=50):
         """Compute solution at x0 for given times."""
         results = []
+
         for t in t_k:
             sum_val = 0
             for j in range(1, n_terms + 1):
                 sum_val += np.exp(-j**2 * t) * f_hat_true(j) * np.sin(j * x0)
             results.append(sum_val)
+
         return np.array(results)
 
     u_data = u_xtk(x0, t_vec)
@@ -237,6 +254,7 @@ def linear_sequence_reconstruction(
 
     for k in range(1, len(bar_f_hat) + 1):
         tk = t_vec[k - 1]
+
         if k == 1:
             bar_f_hat[0] = np.exp(tk) * u_data[0] / np.sin(x0)
         else:
@@ -244,6 +262,7 @@ def linear_sequence_reconstruction(
                 np.exp(-j**2 * tk) * bar_f_hat[j - 1] * np.sin(j * x0)
                 for j in range(1, k)
             ])
+            
             bar_f_hat[k - 1] = (
                 np.exp(k**2 * tk) * (u_data[k - 1] - sum_prev) / np.sin(k * x0)
             )

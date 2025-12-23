@@ -1,5 +1,5 @@
 """
-Main entry point for PDE initial condition reconstruction.
+Main entry point for PDE initial temperature profile reconstruction.
 
 This module provides command-line interface for running various reconstruction
 methods.
@@ -11,7 +11,7 @@ import numpy as np
 from core.reconstruction import (
     compute_modified_t_j,
     compute_modified_t_j_nonhomogeneous,
-    linear_sequence_reconstruction,
+    compute_linear_t_j_homogeneous,
 )
 from visualization.plots import (
     plot_reconstruction,
@@ -36,8 +36,8 @@ def modified_t_j() -> None:
         x_grid,
         f_true_vals,
         bar_f_n_vals,
-        title='Initial Condition Reconstruction (Modified t_j)',
-        save_path='modified_t_j.png',
+        title="Initial Condition Reconstruction (Modified t_j)",
+        save_path="modified_t_j.png",
     )
 
 
@@ -61,9 +61,9 @@ def modified_t_j_nonhomogeneous() -> None:
         """Forcing term function."""
         return np.sin(x) * np.exp(-t)
 
-    print('Computing non-homogeneous reconstruction...')
-    print(f'Parameters: n={n}, T={T}, x0={x0:.4f}')
-    print(f'Forcing term: F(x,t) = sin(x) * exp(-t)')
+    print("Computing non-homogeneous reconstruction...")
+    print(f"Parameters: n={n}, T={T}, x0={x0:.4f}")
+    print(f"Forcing term: F(x,t) = sin(x) * exp(-t)")
 
     f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
         n, T, x0, x_grid, F=F, f_true=f_true
@@ -74,10 +74,10 @@ def modified_t_j_nonhomogeneous() -> None:
         f_true_vals,
         bar_f_n_vals,
         title=(
-            'Non-Homogeneous Initial Condition Reconstruction (Modified t_j)\n'
-            'F(x,t)=sin(x)exp(-t)'
+            "Initial Temperature Profile Reconstruction for Non-Homogeneous Case \n"
+            r"$F(x,t)=\sin(x)\exp(-t)$"
         ),
-        save_path='modified_t_j_nonhomogeneous.png',
+        save_path="modified_t_j_nonhomogeneous.png",
     )
 
 
@@ -97,7 +97,7 @@ def linear_sequence() -> None:
         """Initial condition function."""
         return np.sin(2 * x) + 0.5 * np.sin(5 * x)
 
-    f_true_vals, bar_f_n_vals = linear_sequence_reconstruction(
+    f_true_vals, bar_f_n_vals = compute_linear_t_j_homogeneous(
         n, t0, x0, x_grid, f_true=f_true
     )
 
@@ -105,32 +105,32 @@ def linear_sequence() -> None:
         x_grid,
         f_true_vals,
         bar_f_n_vals,
-        title='Initial Condition Reconstruction (Linear Sequence)',
-        save_path='linear_sequence.png',
+        title="Initial Condition Reconstruction (Linear t_j)",
+        save_path="linear_sequence.png",
     )
 
 
 def main() -> None:
     """Main entry point for command-line interface."""
-    if len(sys.argv) > 1 and sys.argv[1] == '--interactive':
-        print('Starting interactive mode...')
-        print('Use the text boxes to adjust n, T, and x0 parameters.')
+    if len(sys.argv) > 1 and sys.argv[1] == "--interactive":
+        print("Starting interactive mode...")
+        print("Use the text boxes to adjust n, T, and x0 parameters.")
         create_interactive_plot()
-    elif len(sys.argv) > 1 and sys.argv[1] == '--nonhomogeneous':
-        print('Running non-homogeneous case...')
+    elif len(sys.argv) > 1 and sys.argv[1] == "--nonhomogeneous":
+        print("Running non-homogeneous case...")
         modified_t_j_nonhomogeneous()
     else:
-        print('Running Modified t_j method (homogeneous)...')
+        print("Running Modified t_j method (homogeneous)...")
         modified_t_j()
-        print('\nRunning Linear sequence method...')
+        print("\nRunning Linear sequence method...")
         linear_sequence()
-        print('\nDone!')
-        print('\nTo run interactive mode, use: python nhh_re.py --interactive')
+        print("\nDone!")
+        print("\nTo run interactive mode, use: python nhh_re.py --interactive")
         print(
-            'To run non-homogeneous case, use: '
-            'python nhh_re.py --nonhomogeneous'
+            "To run non-homogeneous case, use: "
+            "python nhh_re.py --nonhomogeneous"
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

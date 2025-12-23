@@ -3,7 +3,7 @@
 from core.reconstruction import (
     compute_modified_t_j,
     compute_modified_t_j_nonhomogeneous,
-    linear_sequence_reconstruction,
+    compute_linear_t_j_homogeneous,
 )
 from core.forcing import (
     compute_F_hat_j,
@@ -11,12 +11,13 @@ from core.forcing import (
 )
 from core.utils import NUMBA_AVAILABLE
 
+# Export functions available in this package
 __all__ = [
-    'compute_modified_t_j',
-    'compute_modified_t_j_nonhomogeneous',
-    'linear_sequence_reconstruction',
-    'compute_F_hat_j',
-    'compute_forcing_contribution_at_time',
-    'NUMBA_AVAILABLE',
+    "compute_modified_t_j",
+    "compute_modified_t_j_nonhomogeneous",
+    "compute_linear_t_j_homogeneous",
+    "compute_F_hat_j",
+    "compute_forcing_contribution_at_time",
+    "NUMBA_AVAILABLE",
 ]
 

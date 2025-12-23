@@ -23,7 +23,6 @@ except ImportError:
 # Cache for Fourier coefficients
 _F_HAT_CACHE = {}
 
-
 def get_default_f_true(x: float) -> float:
     """
     Default initial condition function for the homogeneous heat equation.
@@ -41,7 +40,7 @@ def get_f_hat_true(
     j: int, f_true=None, L: float = np.pi
 ) -> float:
     """
-    Compute Fourier coefficient for mode j.
+    Compute Fourier coefficient for dummy mode j.
 
     Args:
         j: Mode number (positive integer).
@@ -55,19 +54,23 @@ def get_f_hat_true(
         f_true = get_default_f_true
 
     cache_key = (j, L)
+
     if cache_key not in _F_HAT_CACHE:
+
         if abs(L - np.pi) < 1e-10:  # Equal to pi
             integrand = lambda x: f_true(x) * np.sin(j * x)
         else:
             integrand = lambda x: f_true(x) * np.sin(j * np.pi * x / L)
+
         result, _ = quad(integrand, 0, L)
         _F_HAT_CACHE[cache_key] = result * 2 / L
+
     return _F_HAT_CACHE[cache_key]
 
 
 def compute_t_vec(n: int, T: float) -> np.ndarray:
     """
-    Compute the modified time vector t_j.
+    Compute the time vectors for modified factorial sequence t_j.
 
     Args:
         n: Number of time points.
@@ -82,7 +85,7 @@ def compute_t_vec(n: int, T: float) -> np.ndarray:
         fact_cache = np.ones(2 * n + 1, dtype=np.float64)  # Store factorials
 
         for i in range(1, 2 * n + 1):
-            fact_cache[i] = fact_cache[i - 1] * i # Computes 2n! part of the factorial sequene
+            fact_cache[i] = fact_cache[i - 1] * i # Computes 2n! part of the factorial time sequene
 
         for k in range(1, n + 1):
             numerator = fact_cache[2 * k - 1]
