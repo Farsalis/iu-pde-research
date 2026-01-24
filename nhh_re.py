@@ -48,14 +48,14 @@ def modified_t_j_nonhomogeneous() -> None:
     Demonstrates the reconstruction of initial condition using the modified
     factorial t_j method for the non-homogeneous heat equation with a forcing term.
     """
-    n = 30
-    T = 5.0
+    n = 4
+    T = 1.0
     x0 = np.sqrt(2)
     x_grid = np.linspace(0, np.pi, 200)
 
     def f_true(x):
         """Initial condition function."""
-        return np.sin(2 * x) + 0.5 * np.sin(5 * x)
+        return ((1 / 8) * np.sin(2 * x)) + ((1 / 18) * np.sin(3 * x))
 
     def F(x, t):
         """Forcing term function."""
@@ -75,6 +75,9 @@ def modified_t_j_nonhomogeneous() -> None:
         bar_f_n_vals,
         title=(
             "Initial Temperature Profile Reconstruction for Non-Homogeneous Case \n"
+            f"n = {n}, T={T}\n"
+            r"$f(x)=\frac{1}{8}\cdot \sin(2x)+\frac{1}{18}\cdot\sin(3x)$"
+            "\n"
             r"$F(x,t)=\sin(x)\exp(-t)$"
         ),
         save_path="modified_t_j_nonhomogeneous.png",
