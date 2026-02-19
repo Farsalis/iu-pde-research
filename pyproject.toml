@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iu-pde-research"
+version = "0.1.0"
+description = "PDE initial temperature profile reconstruction"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "jax",
+]
+[project.optional-dependencies]
+dev = [
+    "numba",
+    "pytest",
+    "mypy",
+    "ruff",
+    "bandit",
+    "pre-commit",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "B",
+    "S",
+    "C4",
+    "RUF",
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["iu_pde_research"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+# Matplotlib and optional deps may lack stubs; relax for visualization
+[[tool.mypy.overrides]]
+module = ["iu_pde_research.visualization.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.bandit]
+exclude_dirs = ["tests"]

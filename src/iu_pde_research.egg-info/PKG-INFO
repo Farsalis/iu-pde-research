@@ -1,0 +1,27 @@
+Metadata-Version: 2.4
+Name: iu-pde-research
+Version: 0.1.0
+Summary: PDE initial temperature profile reconstruction
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: matplotlib
+Requires-Dist: jax
+Provides-Extra: dev
+Requires-Dist: numba; extra == "dev"
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: bandit; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+
+# iu-pde-research
+
+PDE initial temperature profile reconstruction (modified t_j and linear time sequence methods).
+
+Install in development mode: `pip install -e .`  
+Run: `python nhh_re.py --help`  
+Tests: `pytest`
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for style and tooling.

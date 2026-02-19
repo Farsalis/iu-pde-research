@@ -1,0 +1,12 @@
+numpy
+scipy
+matplotlib
+jax
+
+[dev]
+numba
+pytest
+mypy
+ruff
+bandit
+pre-commit
