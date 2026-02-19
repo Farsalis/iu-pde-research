@@ -172,9 +172,7 @@ def create_interactive_plot() -> None:
 
             fig.canvas.draw_idle()  # Redraw title widget
         except Exception as e:
-            ax.set_title(
-                f"Error: {e!s}. Please try again.", fontsize=12, color="red"
-            )
+            ax.set_title(f"Error: {e!s}. Please try again.", fontsize=12, color="red")
             fig.canvas.draw_idle()
 
     # Create text box labels

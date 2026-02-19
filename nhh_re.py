@@ -10,7 +10,6 @@ import sys
 from itertools import product
 from pathlib import Path
 
-import juliacall
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.constants import golden
@@ -101,14 +100,18 @@ def _default_f_true_nonhomogeneous(x: float) -> float:
     """Initial condition used for non-homogeneous demo and batch."""
     return (1 / 8) * np.sin(2 * x) + (1 / 18) * np.sin(3 * x)
 
+
 #############################################################################
+
 
 def _default_F(x: float, t: float) -> float:
     """Forcing term used for non-homogeneous demo and batch."""
     # julia_returned_result = jl._default_julia_F(x, t)
     return np.sin(x) * np.exp(-t)
 
+
 ############################################################################
+
 
 def _default_f_true_linear(x: float) -> float:
     """Initial condition used for linear sequence demo and batch."""

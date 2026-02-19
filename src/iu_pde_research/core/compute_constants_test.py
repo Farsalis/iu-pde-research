@@ -4,7 +4,7 @@ Python -> Julia interoperability test file
 
 from juliacall import Main as jl
 
-# jl is relative to the juliapkg.json file 
+# jl is relative to the juliapkg.json file
 jl.include("./src/iu_pde_research/core/compute_constants_test.jl")
 
 # Explicitly convert Python floats to Julia Float64s
