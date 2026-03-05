@@ -1,0 +1,78 @@
+# iu-pde-research
+
+PDE initial temperature profile reconstruction (modified t_j and linear time sequence methods).
+
+## Overview
+
+This package reconstructs the **initial temperature profile** of the one-dimensional heat equation from temperature measurements at a single spatial point over time. Given measurements at one location \(x_0\) at a sequence of times, it recovers the initial condition \(f(x)\) using Fourier-based reconstruction algorithms.
+
+## Mathematical context
+
+- **Modified factorial t_j**: A time sequence derived from factorial ratios, used for both homogeneous and non-homogeneous heat equations. For the non-homogeneous case, a forcing term \(F(x,t)\) is supported.
+- **Linear time sequence**: An alternative method using a linear progression of measurement times (\(t_k = (n + k - 1) T\)).
+- The domain is \([0, L]\) (default \(L = \pi\)) with Dirichlet boundary conditions; reconstruction uses sine-series (Fourier) representation.
+
+## Installation
+
+From the repository root:
+
+```bash
+pip install -e .
+```
+
+Optional (for tests, linting, type checking):
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Usage
+
+Run the entry point and see all options:
+
+```bash
+python nhh_re.py --help
+```
+
+- **Default**: Runs two demos — modified t_j (homogeneous) and linear time sequence — and prints usage hints.
+- **Interactive**: `python nhh_re.py --interactive` — opens a plot with text boxes to adjust \(n\), \(T\), and \(x_0\) in real time (modified t_j only).
+- **Non-homogeneous demo**: `python nhh_re.py --nonhomogeneous` — runs one non-homogeneous reconstruction with a built-in forcing term and prints error metrics.
+- **Batch**: Run many reconstructions and save plots. Requires `--algorithm` and at least one value each for `--T`, `--x0`, and `--n`. Optional: `--output-dir` (default: `reconstruction_output`).
+
+  Example:
+  ```bash
+  python nhh_re.py --algorithm modified --T 5 --x0 1.41 --n 20
+  python nhh_re.py --algorithm nonhomogeneous --T 5 --x0 1.41 --n 20 --output-dir out
+  ```
+
+  For `--T`, `--x0`, and `--n` you can pass expressions (e.g. `np.pi/golden`, `sqrt(2)`).
+
+## Project structure
+
+- **`nhh_re.py`** — Command-line entry point (demos, interactive mode, batch).
+- **`src/iu_pde_research/`** — Main package:
+  - **`core/`** — Reconstruction algorithms, forcing-term computations, and shared utilities (Fourier coefficients, time vectors).
+  - **`visualization/`** — Plotting and interactive figures (true vs reconstructed \(f\), error metrics).
+- **`tests/`** — Pytest suite for core, forcing, utils, visualization, and CLI helpers.
+
+## Testing
+
+From the repository root:
+
+```bash
+pip install -e .
+pytest
+```
+
+With dev dependencies and full toolchain:
+
+```bash
+pip install -e ".[dev]"
+pre-commit run --all-files
+pytest
+```
+
+## References
+
+- [CONTRIBUTING.md](docs/CONTRIBUTING.md) — How to contribute and run checks.
+- Code style and docstrings: `.cursor/rules/python-lang-styling.mdc` (Rule D.1.4 for docstring format).
