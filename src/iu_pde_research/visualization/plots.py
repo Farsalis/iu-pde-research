@@ -1,4 +1,9 @@
-"""Plotting functions for PDE reconstruction visualization."""
+"""Plotting functions for PDE reconstruction visualization.
+
+Matplotlib-based figures: side-by-side true vs reconstructed initial condition,
+error metrics (L2, Linf, MSE), and an interactive window with text-box
+controls for n, T, and x0.
+"""
 
 from math import cos, exp, log, pi, sin, sqrt, tan
 
@@ -103,8 +108,8 @@ def create_interactive_plot() -> None:
     """
     Create interactive plot with parameter controls.
 
-    Creates an interactive matplotlib plot with text boxes for adjusting
-    n, T, and x0 parameters in real-time.
+    Opens a matplotlib figure with text boxes for n, T, and x0; updates the
+    reconstruction in real time using the modified t_j (homogeneous) method.
     """
     n_init = 20
     T_init = 5.0

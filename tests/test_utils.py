@@ -1,4 +1,8 @@
-"""Tests for iu_pde_research.core.utils."""
+"""Tests for iu_pde_research.core.utils.
+
+Covers get_default_f_true, get_f_hat_true, and compute_t_vec (shape, dtype,
+ordering).
+"""
 
 import numpy as np
 import pytest

@@ -1,4 +1,10 @@
-"""Utility functions and constants for PDE reconstruction."""
+"""Utility functions and constants for PDE reconstruction.
+
+Provides the default initial condition and Fourier-coefficient helpers
+(get_default_f_true, get_f_hat_true with caching), and compute_t_vec for the
+modified factorial t_j time sequence. Uses optional numba JIT when available for
+faster time-vector computation.
+"""
 
 from collections.abc import Callable
 

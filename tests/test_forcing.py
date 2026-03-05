@@ -1,4 +1,8 @@
-"""Tests for iu_pde_research.core.forcing."""
+"""Tests for iu_pde_research.core.forcing.
+
+Covers compute_F_hat_j and compute_forcing_contribution_at_time for zero and
+simple forcing functions.
+"""
 
 import numpy as np
 import pytest

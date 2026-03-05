@@ -1,4 +1,9 @@
-"""Visualization modules for PDE reconstruction results."""
+"""Visualization modules for PDE reconstruction results.
+
+Plotting and interactive visualization: compare true vs reconstructed initial
+condition, report error metrics (L2, Linf, MSE), and adjust parameters n, T, x0
+in real time via text boxes.
+"""
 
 from iu_pde_research.visualization.plots import (
     create_interactive_plot,

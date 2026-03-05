@@ -1,8 +1,14 @@
 # Contributing
 
-Code style and conventions for this project are defined in the **Python styling guide**:
+## Project scope
 
-- **Location:** `.cursor/rules/python-lang-styling.mdc`
+This repository contains research code for **PDE initial temperature profile reconstruction**: algorithms live in `src/iu_pde_research/core/`, the CLI and demo entry point in `nhh_re.py`, and plotting in `src/iu_pde_research/visualization/`. For installation and usage, see [README.md](../README.md).
+
+## Documentation
+
+All public modules, classes, and functions must have docstrings. Format and conventions are defined in the **Python styling guide** (Rule D.1.4): one-line summary, blank line, then body with `:args:`, `:returns:`, `:raises:` as applicable. Omit return description when it is obvious from the type hint.
+
+- **Location:** `./docs/RULES.md`
 
 Please read the relevant sections (formatting, naming, imports, type hints, docstrings, testing) before opening a pull request.
 

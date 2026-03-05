@@ -1,4 +1,9 @@
-"""Forcing term computations for non-homogeneous PDE."""
+"""Forcing term computations for non-homogeneous PDE.
+
+Computes the Fourier coefficient of the forcing term F(x, t) for a given mode,
+and the contribution of the forcing term to the solution at a given time
+(non-homogeneous heat equation with Dirichlet boundary conditions).
+"""
 
 from collections.abc import Callable
 

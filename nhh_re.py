@@ -1,8 +1,9 @@
-"""
-Main entry point for PDE initial temperature profile reconstruction.
+"""Main entry point for PDE initial temperature profile reconstruction.
 
-This module provides command-line interface for running various reconstruction
-methods.
+CLI for running reconstruction methods: by default runs modified t_j (homogeneous)
+and linear sequence demos; --interactive opens a plot with n, T, x0 controls;
+--nonhomogeneous runs one non-homogeneous demo; batch mode uses --algorithm with
+--T, --x0, --n (and optional --output-dir). Run with --help for full options.
 """
 
 import argparse
@@ -302,7 +303,7 @@ def modified_t_j_nonhomogeneous() -> None:
     Demonstrates the reconstruction of initial condition using the modified
     factorial t_j method for the non-homogeneous heat equation with a forcing term.
     """
-    n = 25
+    n = 20
     T = 5.0
     x0 = np.pi / golden
     x_grid = np.linspace(0, np.pi, 200)

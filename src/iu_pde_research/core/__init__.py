@@ -1,4 +1,10 @@
-"""Core modules for PDE initial condition reconstruction."""
+"""Core modules for PDE initial condition reconstruction.
+
+Provides reconstruction algorithms (modified t_j homogeneous/non-homogeneous and
+linear time sequence), forcing-term computations for the non-homogeneous heat
+equation, and shared utilities: Fourier coefficients, default initial conditions,
+and time vectors. Optional numba support for faster time-vector computation.
+"""
 
 from iu_pde_research.core.forcing import (
     compute_F_hat_j,

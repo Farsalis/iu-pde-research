@@ -1,5 +1,8 @@
-"""
-Python -> Julia interoperability test file
+"""Python–Julia interoperability test for forcing/constants.
+
+Exercises a Julia script (compute_constants_test.jl) via juliacall to verify
+shared forcing or constant definitions. Requires a working Julia environment
+and the juliacall package; not part of the standard pytest suite.
 """
 
 from juliacall import Main as jl

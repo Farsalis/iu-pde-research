@@ -1,4 +1,8 @@
-"""Tests for nhh_re CLI and helpers."""
+"""Tests for nhh_re CLI and helpers.
+
+Covers expression parsing (_parse_float_expr, _parse_int_expr), batch filename
+construction, single reconstruction runs (modified, linear), and CLI --help.
+"""
 
 import subprocess
 import sys

@@ -1,4 +1,8 @@
-"""Tests for iu_pde_research.visualization.plots."""
+"""Tests for iu_pde_research.visualization.plots.
+
+Covers plot_reconstruction (save/show) and plot_reconstruction_with_errors
+(returned metrics and zero-error case).
+"""
 
 from pathlib import Path
 

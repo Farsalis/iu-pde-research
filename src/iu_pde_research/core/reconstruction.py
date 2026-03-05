@@ -1,5 +1,9 @@
 """Initial temperature profile reconstruction algorithms for PDE.
 
+Entry points: compute_modified_t_j (homogeneous), compute_modified_t_j_nonhomogeneous
+(with optional forcing F(x,t)), and compute_linear_t_j_homogeneous (linear time
+sequence). Each returns (f_true_vals, bar_f_n_vals) on the given x_grid.
+
 NOTE: We represent functions using numpy arrays NDArray[any] in order to use numpy's vectorized operations.
 """
 

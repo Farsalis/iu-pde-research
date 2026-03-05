@@ -1,4 +1,8 @@
-"""Tests for iu_pde_research.core.reconstruction."""
+"""Tests for iu_pde_research.core.reconstruction.
+
+Covers shapes, finiteness, parametrized n, non-homogeneous vs homogeneous
+agreement, and linear t_j homogeneous reconstruction.
+"""
 
 import numpy as np
 import pytest

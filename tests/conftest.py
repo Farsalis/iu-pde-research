@@ -1,4 +1,8 @@
-"""Shared pytest fixtures for PDE reconstruction tests."""
+"""Shared pytest fixtures for PDE reconstruction tests.
+
+Provides x_grid, small_n, T, x0, f_true_simple, and F_zero for use across
+reconstruction, forcing, utils, and visualization tests.
+"""
 
 import sys
 from collections.abc import Callable
