@@ -75,4 +75,4 @@ pytest
 ## References
 
 - [CONTRIBUTING.md](docs/CONTRIBUTING.md) — How to contribute and run checks.
-- Code style and docstrings: `.cursor/rules/python-lang-styling.mdc` (Rule D.1.4 for docstring format).
+- Code style and docstrings: `docs/RULES.md`
