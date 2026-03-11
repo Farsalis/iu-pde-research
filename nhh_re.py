@@ -11,7 +11,6 @@ import sys
 from itertools import product
 from pathlib import Path
 
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.constants import golden
@@ -19,6 +18,7 @@ from scipy.constants import golden
 from iu_pde_research.core import (
     compute_linear_t_j_homogeneous,
     compute_modified_t_j,
+    compute_modified_t_j_jax,
     compute_modified_t_j_nonhomogeneous,
 )
 from iu_pde_research.visualization import (
@@ -113,10 +113,14 @@ def _default_f_true_nonhomogeneous(x: float | np.ndarray) -> float | np.ndarray:
 def _default_F(x: float, t: float) -> float:
     """Forcing term used for non-homogeneous demo and batch.
 
-    Uses JAX (jnp) so that F_x = ∂F/∂x can be obtained via autodiff when
+    Uses JAX (jax.numpy) so that F_x = ∂F/∂x can be obtained via autodiff when
     F_x is not supplied. Returns a float-convertible value (Python float
     or 0-dim JAX array); call sites that need float use float().
     """
+    # Delayed import so the CLI works even when JAX is not installed,
+    # unless the user explicitly requests a JAX-based computation.
+    import jax.numpy as jnp
+
     return jnp.sin(x) * jnp.exp(-t)
 
 
@@ -194,6 +198,16 @@ def _parse_args() -> argparse.Namespace:
         default=DEFAULT_OUTPUT_DIR,
         help="Output directory for batch plots (created if missing).",
     )
+    parser.add_argument(
+        "--backend",
+        choices=["cpu", "jax"],
+        default="cpu",
+        help=(
+            "Backend for reconstruction: 'cpu' (NumPy/SciPy) or 'jax'. "
+            "Currently the JAX backend is supported for the modified t_j "
+            "homogeneous algorithm."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -223,6 +237,7 @@ def _run_single_reconstruction(
     n: int,
     output_dir: Path,
     x_grid: np.ndarray,
+    backend: str = "cpu",
 ) -> None:
     """
     Run one reconstruction for the given (algorithm, T, x0, n) and save a plot.
@@ -239,7 +254,10 @@ def _run_single_reconstruction(
     save_path = output_dir / f"{stem}.png"
 
     if algorithm == "modified":
-        f_true_vals, bar_f_n_vals = compute_modified_t_j(n, T, x0, x_grid)
+        if backend == "jax":
+            f_true_vals, bar_f_n_vals = compute_modified_t_j_jax(n, T, x0, x_grid)
+        else:
+            f_true_vals, bar_f_n_vals = compute_modified_t_j(n, T, x0, x_grid)
         plot_reconstruction(
             x_grid,
             f_true_vals,
@@ -291,7 +309,7 @@ def modified_t_j() -> None:
     Run factorial t_j method for homogeneous case.
 
     Demonstrates the reconstruction of initial condition using the modified
-    factorial t_j  for the homogeneous heat equation.
+    factorial t_j for the homogeneous heat equation (CPU backend).
     """
     n = 20
     T = 5
@@ -378,7 +396,7 @@ def main() -> None:
         return
 
     if args.nonhomogeneous:
-        print("Running non-homogeneous case...")
+        print("Running non-homogeneous case (CPU backend)...")
         modified_t_j_nonhomogeneous()
         return
 
@@ -397,7 +415,15 @@ def main() -> None:
         x_grid = np.linspace(0, np.pi, 200)
         total = 0
         for T, x0, n in product(args.T, args.x0, args.n):
-            _run_single_reconstruction(args.algorithm, T, x0, n, output_dir, x_grid)
+            _run_single_reconstruction(
+                args.algorithm,
+                T,
+                x0,
+                n,
+                output_dir,
+                x_grid,
+                backend=args.backend,
+            )
             total += 1
         print(f"Saved {total} plot(s) to {output_dir.resolve()}")
         return
@@ -415,8 +441,22 @@ def main() -> None:
         )
         sys.exit(1)
 
-    print("Running Modified t_j method (homogeneous)...")
-    modified_t_j()
+    print(f"Running Modified t_j method (homogeneous, backend={args.backend})...")
+    if args.backend == "jax":
+        n = 20
+        T = 5
+        x0 = np.sqrt(2)
+        x_grid = np.linspace(0, np.pi, 200)
+        f_true_vals, bar_f_n_vals = compute_modified_t_j_jax(n, T, x0, x_grid)
+        plot_reconstruction(
+            x_grid,
+            f_true_vals,
+            bar_f_n_vals,
+            title="Initial Condition Reconstruction (Modified t_j, JAX backend)",
+            save_path="modified_t_j_jax.png",
+        )
+    else:
+        modified_t_j()
     print("\nRunning Linear sequence method...")
     linear_sequence()
     print("\nDone!")

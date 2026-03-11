@@ -19,6 +19,10 @@ from iu_pde_research.core.reconstruction import (
     compute_modified_t_j,
     compute_modified_t_j_nonhomogeneous,
 )
+from iu_pde_research.core.reconstruction_cupy import (
+    compute_modified_t_j_nonhomogeneous_cupy,
+)
+from iu_pde_research.core.reconstruction_jax import compute_modified_t_j_jax
 from iu_pde_research.core.utils import NUMBA_AVAILABLE
 
 # Export functions available in this package
@@ -31,6 +35,8 @@ __all__ = [
     "compute_linear_t_j_homogeneous",
     "compute_modified_t_j",
     "compute_modified_t_j_nonhomogeneous",
+    "compute_modified_t_j_nonhomogeneous_cupy",
+    "compute_modified_t_j_jax",
     "compute_n_k",
     "make_F_x_from_F",
 ]
