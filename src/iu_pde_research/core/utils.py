@@ -36,17 +36,17 @@ except ImportError:
 _F_HAT_CACHE = {}
 
 
-def get_default_f_true(x: float) -> float:
+def get_default_f_true(x: float | np.ndarray) -> float | np.ndarray:
     """
     Default initial condition function for the homogeneous heat equation.
 
     Args:
-        x: Spatial coordinate.
+        x: Spatial coordinate (scalar or array).
 
     Returns:
         Value of the default initial condition at x.
     """
-    return float(np.sin(2 * x) + 0.5 * np.sin(5 * x))
+    return np.sin(2 * x) + 0.5 * np.sin(5 * x)
 
 
 def get_f_hat_true(

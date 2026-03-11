@@ -11,6 +11,7 @@ import sys
 from itertools import product
 from pathlib import Path
 
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.constants import golden
@@ -101,26 +102,30 @@ def _parse_int_expr(s: str) -> int:
         raise ValueError(msg) from e
 
 
-def _default_f_true_nonhomogeneous(x: float) -> float:
+def _default_f_true_nonhomogeneous(x: float | np.ndarray) -> float | np.ndarray:
     """Initial condition used for non-homogeneous demo and batch."""
-    return float((1 / 8) * np.sin(2 * x) + (1 / 18) * np.sin(3 * x))
+    return (1 / 8) * np.sin(2 * x) + (1 / 18) * np.sin(3 * x)
 
 
 #############################################################################
 
 
 def _default_F(x: float, t: float) -> float:
-    """Forcing term used for non-homogeneous demo and batch."""
-    # julia_returned_result = jl._default_julia_F(x, t)
-    return float(np.sin(x) * np.exp(-t))
+    """Forcing term used for non-homogeneous demo and batch.
+
+    Uses JAX (jnp) so that F_x = ∂F/∂x can be obtained via autodiff when
+    F_x is not supplied. Returns a float-convertible value (Python float
+    or 0-dim JAX array); call sites that need float use float().
+    """
+    return jnp.sin(x) * jnp.exp(-t)
 
 
 ############################################################################
 
 
-def _default_f_true_linear(x: float) -> float:
+def _default_f_true_linear(x: float | np.ndarray) -> float | np.ndarray:
     """Initial condition used for linear sequence demo and batch."""
-    return float(np.sin(2 * x) + 0.5 * np.sin(5 * x))
+    return np.sin(2 * x) + 0.5 * np.sin(5 * x)
 
 
 def _parse_args() -> argparse.Namespace:

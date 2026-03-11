@@ -12,12 +12,22 @@ from collections.abc import Callable
 import numpy as np
 from scipy.integrate import quad
 
-from iu_pde_research.core.forcing import compute_forcing_contribution_at_time
+from iu_pde_research.core.forcing import (
+    compute_forcing_contribution_at_time,
+    compute_forcing_truncation_constant_C,
+    compute_n_k,
+)
+from iu_pde_research.core.forcing_autodiff import make_F_x_from_F
 from iu_pde_research.core.utils import (
     compute_t_vec,
     get_default_f_true,
     get_f_hat_true,
 )
+
+# Optional cap on forcing modes n_k for numerical feasibility.
+# Set to an integer (e.g. 200) to limit the number of forcing modes;
+# leave as None to use the theoretical n_k from the paper without capping.
+MAX_FORCING_MODES: int | None = None
 
 
 def compute_modified_t_j(
@@ -96,13 +106,16 @@ def compute_modified_t_j_nonhomogeneous(
     x0: float,
     x_grid: np.ndarray,
     F: Callable[[float, float], float] | None = None,
+    F_x: Callable[[float, float], float] | None = None,
     f_true: Callable[[float], float] | None = None,
     L: float = np.pi,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Reconstruct initial condition using the modified t_j method (non-homogeneous).
 
-    Same layout as the non-homogeneous approximation scheme.
+    Same layout as the non-homogeneous approximation scheme. When F is provided,
+    either supply F_x (spatial derivative of F) or ensure F is JAX-differentiable
+    (uses jax.numpy) so that F_x is computed automatically for the n_k truncation.
 
     Args:
         n: Number of time measurements.
@@ -110,6 +123,8 @@ def compute_modified_t_j_nonhomogeneous(
         x0: Spatial measurement point.
         x_grid: Grid of x values for reconstruction.
         F: Forcing function F(x, t). If None, assumes the homogeneous case.
+        F_x: Spatial derivative F_x(x, s) = ∂F/∂x. If None and F is not None,
+            F_x is obtained via JAX autodiff from F (F must use JAX ops).
         f_true: True initial condition function. If None, uses the default
             initial condition.
         L: Domain length. Defaults to pi.
@@ -123,6 +138,13 @@ def compute_modified_t_j_nonhomogeneous(
 
     if f_true is None:
         f_true = get_default_f_true
+
+    if F is not None and F_x is None:
+        F_x = make_F_x_from_F(F)
+
+    C: float = 0.0
+    if F is not None and F_x is not None:
+        C = compute_forcing_truncation_constant_C(F_x, T, L)
 
     n_terms = 50
     j_vals = np.arange(1, n_terms + 1)
@@ -159,12 +181,22 @@ def compute_modified_t_j_nonhomogeneous(
     exp_matrix = np.exp(-np.outer(t_vec, j_squared))
     u_homogeneous = np.sum(exp_matrix * f_hat_vals * sin_j_x0, axis=1)
 
-    # Compute forcing contribution to u(x0, t_k)
+    # Compute forcing contribution to u(x0, t_k) with truncation n_k per step.
     if F is not None:
         u_forcing = np.array(
             [
-                compute_forcing_contribution_at_time(F, tk, x0, n_terms, L)
-                for tk in t_vec
+                compute_forcing_contribution_at_time(
+                    F,
+                    tk,
+                    x0,
+                    (
+                        min(compute_n_k(k, tk, C), MAX_FORCING_MODES)
+                        if MAX_FORCING_MODES is not None
+                        else compute_n_k(k, tk, C)
+                    ),
+                    L,
+                )
+                for k, tk in enumerate(t_vec, start=1)
             ]
         )
         u_data = u_homogeneous + u_forcing
@@ -188,8 +220,11 @@ def compute_modified_t_j_nonhomogeneous(
 
         if k == 1:
             if F is not None:
+                n_k = compute_n_k(k, tk, C)
+                if MAX_FORCING_MODES is not None:
+                    n_k = min(n_k, MAX_FORCING_MODES)
                 forcing_contrib = compute_forcing_contribution_at_time(
-                    F, tk, x0, n_terms, L
+                    F, tk, x0, n_k, L
                 )
 
                 u_data_k = u_data_k - forcing_contrib
@@ -204,8 +239,11 @@ def compute_modified_t_j_nonhomogeneous(
             sum_prev = np.sum(exp_terms * c_bar_prev)
 
             if F is not None:
+                n_k = compute_n_k(k, tk, C)
+                if MAX_FORCING_MODES is not None:
+                    n_k = min(n_k, MAX_FORCING_MODES)
                 forcing_contrib = compute_forcing_contribution_at_time(
-                    F, tk, x0, n_terms, L
+                    F, tk, x0, n_k, L
                 )
 
                 u_data_k = u_data_k - forcing_contrib
