@@ -109,6 +109,10 @@ def compute_modified_t_j_nonhomogeneous(
     F_x: Callable[[float, float], float] | None = None,
     f_true: Callable[[float], float] | None = None,
     L: float = np.pi,
+    *,
+    backend: str = "cpu",
+    F_gpu: Callable[..., object] | None = None,
+    F_x_gpu: Callable[..., object] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Reconstruct initial condition using the modified t_j method (non-homogeneous).
@@ -134,6 +138,50 @@ def compute_modified_t_j_nonhomogeneous(
         initial condition on `x_grid` and `bar_f_n_vals` is the reconstructed
         initial condition on `x_grid`.
     """
+    if backend not in {"cpu", "gpu"}:
+        msg = f"Unsupported backend {backend!r} (expected 'cpu' or 'gpu')."
+        raise ValueError(msg)
+
+    # GPU backend is implemented in reconstruction_cupy; we import lazily to
+    # avoid importing CuPy when not needed.
+    if backend == "gpu":
+        try:
+            from iu_pde_research.core.reconstruction_cupy import (
+                compute_modified_t_j_nonhomogeneous_gpu,
+            )
+        except ImportError as exc:  # pragma: no cover - hardware/env dependent
+            msg = (
+                "backend='gpu' requested but CuPy-based implementation is not "
+                "available or CuPy is not installed."
+            )
+            raise RuntimeError(msg) from exc
+
+        if F is None:
+            msg = (
+                "backend='gpu' for compute_modified_t_j_nonhomogeneous requires "
+                "a non-None forcing F."
+            )
+            raise ValueError(msg)
+
+        if F_gpu is None or F_x_gpu is None:
+            msg = (
+                "backend='gpu' requires CuPy-compatible F_gpu and F_x_gpu "
+                "callables; provide them explicitly or use backend='cpu'."
+            )
+            raise ValueError(msg)
+
+        return compute_modified_t_j_nonhomogeneous_gpu(
+            n=n,
+            T=T,
+            x0=x0,
+            x_grid=x_grid,
+            F_gpu=F_gpu,
+            F_x_gpu=F_x_gpu,
+            f_true=f_true,
+            L=L,
+        )
+
+    # --- CPU backend (default) ----------------------------------------------
     t_vec = compute_t_vec(n, T)
 
     if f_true is None:

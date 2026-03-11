@@ -8,6 +8,7 @@ and linear sequence demos; --interactive opens a plot with n, T, x0 controls;
 
 import argparse
 import sys
+from collections.abc import Callable
 from itertools import product
 from pathlib import Path
 
@@ -16,6 +17,7 @@ import numpy as np
 from scipy.constants import golden
 
 from iu_pde_research.core import (
+    INITIAL_CONDITION_OPTIONS,
     compute_linear_t_j_homogeneous,
     compute_modified_t_j,
     compute_modified_t_j_jax,
@@ -200,12 +202,21 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--backend",
-        choices=["cpu", "jax"],
+        choices=["cpu", "jax", "gpu"],
         default="cpu",
         help=(
-            "Backend for reconstruction: 'cpu' (NumPy/SciPy) or 'jax'. "
-            "Currently the JAX backend is supported for the modified t_j "
-            "homogeneous algorithm."
+            "Backend for reconstruction: 'cpu' (NumPy/SciPy), 'jax' (JAX), "
+            "or 'gpu' (CuPy for nonhomogeneous default forcing)."
+        ),
+    )
+    parser.add_argument(
+        "--initial-condition",
+        choices=list(INITIAL_CONDITION_OPTIONS.keys()),
+        default="default",
+        help=(
+            "True initial condition: 'default' (algorithm-specific), or "
+            "'sine_series_5' / 'sine_series_10' / 'sine_series_15' for "
+            "f(x)=sum_{j=1}^{n} (1/(2j^2))*sin(j*x)."
         ),
     )
     return parser.parse_args()
@@ -230,6 +241,16 @@ def _batch_filename_stem(algorithm: str, T: float, x0: float, n: int) -> str:
     return f"{algorithm}_T{t_str}_x0{x0_str}_n{n}"
 
 
+def _get_f_true_for_algorithm(
+    algorithm: str,
+    initial_condition: str,
+):
+    """Resolve f_true callable: use algorithm default if initial_condition is 'default', else the named option."""
+    if initial_condition == "default":
+        return None
+    return INITIAL_CONDITION_OPTIONS[initial_condition]
+
+
 def _run_single_reconstruction(
     algorithm: str,
     T: float,
@@ -238,6 +259,7 @@ def _run_single_reconstruction(
     output_dir: Path,
     x_grid: np.ndarray,
     backend: str = "cpu",
+    initial_condition: str = "default",
 ) -> None:
     """
     Run one reconstruction for the given (algorithm, T, x0, n) and save a plot.
@@ -253,11 +275,16 @@ def _run_single_reconstruction(
     stem = _batch_filename_stem(algorithm, T, x0, n)
     save_path = output_dir / f"{stem}.png"
 
+    f_true_callable = _get_f_true_for_algorithm(algorithm, initial_condition)
+
     if algorithm == "modified":
+        f_true = f_true_callable if f_true_callable is not None else None
         if backend == "jax":
             f_true_vals, bar_f_n_vals = compute_modified_t_j_jax(n, T, x0, x_grid)
         else:
-            f_true_vals, bar_f_n_vals = compute_modified_t_j(n, T, x0, x_grid)
+            f_true_vals, bar_f_n_vals = compute_modified_t_j(
+                n, T, x0, x_grid, f_true=f_true
+            )
         plot_reconstruction(
             x_grid,
             f_true_vals,
@@ -267,14 +294,40 @@ def _run_single_reconstruction(
             show=False,
         )
     elif algorithm == "nonhomogeneous":
-        f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
-            n,
-            T,
-            x0,
-            x_grid,
-            F=_default_F,
-            f_true=_default_f_true_nonhomogeneous,
-        )
+        if backend == "gpu":
+            try:
+                from iu_pde_research.core.forcing_cupy import (
+                    default_F_cupy,
+                    default_F_x_cupy,
+                )
+            except ImportError as exc:  # pragma: no cover - env dependent
+                msg = (
+                    "backend='gpu' requested for nonhomogeneous batch run, "
+                    "but CuPy-based forcing kernels are not available. "
+                    "Install CuPy or use --backend cpu."
+                )
+                raise RuntimeError(msg) from exc
+
+            f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
+                n,
+                T,
+                x0,
+                x_grid,
+                F=_default_F,
+                f_true=f_true_callable or _default_f_true_nonhomogeneous,
+                backend="gpu",
+                F_gpu=default_F_cupy,
+                F_x_gpu=default_F_x_cupy,
+            )
+        else:
+            f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
+                n,
+                T,
+                x0,
+                x_grid,
+                F=_default_F,
+                f_true=f_true_callable or _default_f_true_nonhomogeneous,
+            )
         plot_reconstruction_with_errors(
             x_grid,
             f_true_vals,
@@ -291,7 +344,11 @@ def _run_single_reconstruction(
             raise ValueError(f"Unknown algorithm: {algorithm!r}")
         t0 = T
         f_true_vals, bar_f_n_vals = compute_linear_t_j_homogeneous(
-            n, t0, x0, x_grid, f_true=_default_f_true_linear
+            n,
+            t0,
+            x0,
+            x_grid,
+            f_true=f_true_callable or _default_f_true_linear,
         )
         plot_reconstruction(
             x_grid,
@@ -325,7 +382,12 @@ def modified_t_j() -> None:
     )
 
 
-def modified_t_j_nonhomogeneous() -> None:
+def modified_t_j_nonhomogeneous(
+    backend: str = "cpu",
+    f_true: (
+        Callable[[float | np.ndarray], float | np.ndarray] | None
+    ) = None,
+) -> None:
     """
     Run factorial t_j method for non-homogeneous case.
 
@@ -336,14 +398,42 @@ def modified_t_j_nonhomogeneous() -> None:
     T = 5.0
     x0 = np.pi / golden
     x_grid = np.linspace(0, np.pi, 200)
+    if f_true is None:
+        f_true = _default_f_true_nonhomogeneous
 
     print("Computing non-homogeneous reconstruction...")
     print(f"Parameters: n={n}, T={T}, x0={x0:.4f}")
     print("Forcing term: F(x,t) = sin(x) * exp(-t)")
 
-    f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
-        n, T, x0, x_grid, F=_default_F, f_true=_default_f_true_nonhomogeneous
-    )
+    if backend == "gpu":
+        try:
+            from iu_pde_research.core.forcing_cupy import (
+                default_F_cupy,
+                default_F_x_cupy,
+            )
+        except ImportError as exc:  # pragma: no cover - env dependent
+            msg = (
+                "backend='gpu' requested for nonhomogeneous demo, but CuPy-based "
+                "forcing kernels are not available. Install CuPy or use "
+                "--backend cpu."
+            )
+            raise RuntimeError(msg) from exc
+
+        f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
+            n,
+            T,
+            x0,
+            x_grid,
+            F=_default_F,
+            f_true=f_true,
+            backend="gpu",
+            F_gpu=default_F_cupy,
+            F_x_gpu=default_F_x_cupy,
+        )
+    else:
+        f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
+            n, T, x0, x_grid, F=_default_F, f_true=f_true
+        )
 
     plot_reconstruction_with_errors(
         x_grid,
@@ -396,8 +486,13 @@ def main() -> None:
         return
 
     if args.nonhomogeneous:
-        print("Running non-homogeneous case (CPU backend)...")
-        modified_t_j_nonhomogeneous()
+        print(f"Running non-homogeneous case (backend={args.backend})...")
+        f_true = (
+            None
+            if args.initial_condition == "default"
+            else INITIAL_CONDITION_OPTIONS[args.initial_condition]
+        )
+        modified_t_j_nonhomogeneous(backend=args.backend, f_true=f_true)
         return
 
     batch = (
@@ -423,6 +518,7 @@ def main() -> None:
                 output_dir,
                 x_grid,
                 backend=args.backend,
+                initial_condition=args.initial_condition,
             )
             total += 1
         print(f"Saved {total} plot(s) to {output_dir.resolve()}")

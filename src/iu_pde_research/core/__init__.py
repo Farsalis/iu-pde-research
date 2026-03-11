@@ -23,11 +23,23 @@ from iu_pde_research.core.reconstruction_cupy import (
     compute_modified_t_j_nonhomogeneous_cupy,
 )
 from iu_pde_research.core.reconstruction_jax import compute_modified_t_j_jax
-from iu_pde_research.core.utils import NUMBA_AVAILABLE
+from iu_pde_research.core.utils import (
+    INITIAL_CONDITION_OPTIONS,
+    NUMBA_AVAILABLE,
+    get_default_f_true,
+    get_f_true_sine_series_5,
+    get_f_true_sine_series_10,
+    get_f_true_sine_series_15,
+)
 
 # Export functions available in this package
 __all__ = [
+    "INITIAL_CONDITION_OPTIONS",
     "NUMBA_AVAILABLE",
+    "get_default_f_true",
+    "get_f_true_sine_series_5",
+    "get_f_true_sine_series_10",
+    "get_f_true_sine_series_15",
     "compute_F_hat_j",
     "compute_exp_decay_cutoff",
     "compute_forcing_contribution_at_time",

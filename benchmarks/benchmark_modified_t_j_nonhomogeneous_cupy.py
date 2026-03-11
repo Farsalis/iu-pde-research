@@ -76,8 +76,16 @@ def run_benchmark(cfg: BenchmarkConfig) -> None:
         return
 
     print("Warming up CuPy implementation (includes initial kernel setup)...")
-    compute_modified_t_j_nonhomogeneous_cupy(
-        cfg.n, cfg.T, cfg.x0, x_grid, F=F_default
+    compute_modified_t_j_nonhomogeneous(
+        cfg.n,
+        cfg.T,
+        cfg.x0,
+        x_grid,
+        F=F_default,
+        F_x=F_x_default,
+        backend="gpu",
+        F_gpu=lambda x, t: np.sin(x) * np.exp(-t),  # type: ignore[arg-type]
+        F_x_gpu=lambda x, t: np.cos(x) * np.exp(-t),  # type: ignore[arg-type]
     )
 
     # Time CPU implementation.
@@ -97,17 +105,26 @@ def run_benchmark(cfg: BenchmarkConfig) -> None:
 
     # Time CuPy implementation.
     print("Timing CuPy implementation (GPU)...")
-    cupy_times = _time_call(
-        compute_modified_t_j_nonhomogeneous_cupy,
+    gpu_times = _time_call(
+        lambda n, T, x0, xg: compute_modified_t_j_nonhomogeneous(
+            n,
+            T,
+            x0,
+            xg,
+            F=F_default,
+            F_x=F_x_default,
+            backend="gpu",
+            F_gpu=lambda x, t: np.sin(x) * np.exp(-t),  # CuPy-compatible in real use
+            F_x_gpu=lambda x, t: np.cos(x) * np.exp(-t),
+        ),
         cfg.n,
         cfg.T,
         cfg.x0,
         x_grid,
-        F_default,
         repeats=cfg.repeats,
     )
-    cupy_mean = statistics.mean(cupy_times)
-    cupy_std = statistics.pstdev(cupy_times)
+    cupy_mean = statistics.mean(gpu_times)
+    cupy_std = statistics.pstdev(gpu_times)
 
     print("\n--- Results (wall-clock, seconds) ---")
     print(f"CPU   mean = {cpu_mean:.4f}  std = {cpu_std:.4f}")
