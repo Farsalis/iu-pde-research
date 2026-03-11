@@ -19,25 +19,29 @@ def compute_F_hat_j(
     L: float = np.pi,
 ) -> float:
     """
-    Compute Fourier coefficient of forcing term F(x,t) for mode j.
+    Compute Fourier coefficient of forcing term F(x, t) for mode j.
 
-    :args:
+    Args:
         F: Forcing function F(x, t).
         j: Mode number (positive integer).
         t: Time value.
         L: Domain length. Defaults to pi.
 
-    :returns:
+    Returns:
         Fourier coefficient F_hat[j] at time t.
     """
     if abs(L - np.pi) < 1e-10:
-        integrand = lambda x: F(x, t) * np.sin(j * x)
+
+        def integrand(x: float) -> float:
+            return float(F(x, t) * np.sin(j * x))
     else:
-        integrand = lambda x: F(x, t) * np.sin(j * np.pi * x / L)
+
+        def integrand(x: float) -> float:
+            return float(F(x, t) * np.sin(j * np.pi * x / L))
 
     result, _ = quad(integrand, 0, L)
 
-    return result * 2 / L
+    return float(result * 2 / L)
 
 
 def compute_forcing_contribution_at_time(
@@ -50,14 +54,14 @@ def compute_forcing_contribution_at_time(
     """
     Compute forcing term contribution to solution at time tk.
 
-    :args:
+    Args:
         F: Forcing function F(x, t).
         tk: Time value.
         x0: Spatial measurement point.
         n_terms: Number of Fourier modes to use. Defaults to 50.
         L: Domain length. Defaults to pi.
 
-    :returns:
+    Returns:
         Contribution of forcing term to u(x0, tk).
     """
     sum_val = 0.0
@@ -67,25 +71,25 @@ def compute_forcing_contribution_at_time(
     # Prevent overflow due to large exponents.
     for j in j_vals:
 
-        def integrand(s):
+        def integrand(s: float, j_val: int = j) -> float:
             if s < 0 or s > tk:
                 return 0.0
-            F_hat_j = compute_F_hat_j(F, j, s, L)
+            f_hat_j = compute_F_hat_j(F, j_val, s, L)
 
             if use_pi_formulation:
-                j_sq = j**2  # Simplified form for pi case
+                j_sq = j_val**2  # Simplified form for pi case
                 exponent = -j_sq * (
                     tk - s
                 )  # Exponents in the j-summations from Green's function
                 if exponent > 700:  # Found through trial and error
                     return 0.0
-                return F_hat_j * np.exp(exponent)
+                return float(f_hat_j * np.exp(exponent))
             else:
-                j_sq = (j * np.pi / L) ** 2  # From gamma during derivation
+                j_sq = (j_val * np.pi / L) ** 2  # From gamma during derivation
                 exponent = -j_sq * (tk - s)
                 if exponent > 700:
                     return 0.0
-                return F_hat_j * np.exp(exponent)
+                return float(f_hat_j * np.exp(exponent))
 
         try:
             integral_val, _ = quad(
@@ -95,8 +99,8 @@ def compute_forcing_contribution_at_time(
             integral_val = 0.0
 
         if use_pi_formulation:
-            sum_val += integral_val * np.sin(j * x0)  # Outside sine term in summation
+            sum_val += integral_val * np.sin(int(j) * x0)  # Outside sine term
         else:
-            sum_val += integral_val * np.sin(j * np.pi * x0 / L)
+            sum_val += integral_val * np.sin(int(j) * np.pi * x0 / L)
 
     return sum_val

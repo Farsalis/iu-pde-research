@@ -51,13 +51,13 @@ def _parse_float_expr(s: str) -> float:
     """
     Parse a string as a float or as a safe expression (e.g. np.pi / golden).
 
-    :args:
-        s: A numeric string or expression using names from _EXPR_NAMESPACE.
+    Args:
+        s: A numeric string or expression using names from `_EXPR_NAMESPACE`.
 
-    :returns:
+    Returns:
         The evaluated float value.
 
-    :raises:
+    Raises:
         ValueError: If the string is not a valid number or expression.
     """
     s_stripped = s.strip()
@@ -66,23 +66,25 @@ def _parse_float_expr(s: str) -> float:
     except ValueError:
         pass
     try:
-        result = eval(s_stripped, _EXPR_NAMESPACE, {})  # nosec B307 — restricted namespace for CLI
+        # Restricted evaluation namespace to satisfy bandit (no arbitrary builtins).
+        result = eval(s_stripped, {"__builtins__": {}}, _EXPR_NAMESPACE)  # nosec B307
         return float(result)
     except Exception as e:
-        raise ValueError(f"Invalid expression for float: {s_stripped!r}: {e}") from e
+        msg = f"Invalid expression for float: {s_stripped!r}: {e}"
+        raise ValueError(msg) from e
 
 
 def _parse_int_expr(s: str) -> int:
     """
     Parse a string as an int or as a safe expression (e.g. 2 * 10).
 
-    :args:
-        s: A numeric string or expression using names from _EXPR_NAMESPACE.
+    Args:
+        s: A numeric string or expression using names from `_EXPR_NAMESPACE`.
 
-    :returns:
+    Returns:
         The evaluated integer value.
 
-    :raises:
+    Raises:
         ValueError: If the string is not a valid integer or expression.
     """
     s_stripped = s.strip()
@@ -91,15 +93,17 @@ def _parse_int_expr(s: str) -> int:
     except ValueError:
         pass
     try:
-        result = eval(s_stripped, _EXPR_NAMESPACE, {})  # nosec B307 — restricted namespace for CLI
+        # Restricted evaluation namespace to satisfy bandit (no arbitrary builtins).
+        result = eval(s_stripped, {"__builtins__": {}}, _EXPR_NAMESPACE)  # nosec B307
         return int(round(result))
     except Exception as e:
-        raise ValueError(f"Invalid expression for int: {s_stripped!r}: {e}") from e
+        msg = f"Invalid expression for int: {s_stripped!r}: {e}"
+        raise ValueError(msg) from e
 
 
 def _default_f_true_nonhomogeneous(x: float) -> float:
     """Initial condition used for non-homogeneous demo and batch."""
-    return (1 / 8) * np.sin(2 * x) + (1 / 18) * np.sin(3 * x)
+    return float((1 / 8) * np.sin(2 * x) + (1 / 18) * np.sin(3 * x))
 
 
 #############################################################################
@@ -108,7 +112,7 @@ def _default_f_true_nonhomogeneous(x: float) -> float:
 def _default_F(x: float, t: float) -> float:
     """Forcing term used for non-homogeneous demo and batch."""
     # julia_returned_result = jl._default_julia_F(x, t)
-    return np.sin(x) * np.exp(-t)
+    return float(np.sin(x) * np.exp(-t))
 
 
 ############################################################################
@@ -116,14 +120,14 @@ def _default_F(x: float, t: float) -> float:
 
 def _default_f_true_linear(x: float) -> float:
     """Initial condition used for linear sequence demo and batch."""
-    return np.sin(2 * x) + 0.5 * np.sin(5 * x)
+    return float(np.sin(2 * x) + 0.5 * np.sin(5 * x))
 
 
 def _parse_args() -> argparse.Namespace:
     """
     Build and parse command-line arguments for demo and batch modes.
 
-    :returns:
+    Returns:
         Parsed namespace with optional interactive, nonhomogeneous, and
         batch fields (algorithm, T, x0, n, output_dir).
     """
@@ -192,14 +196,15 @@ def _batch_filename_stem(algorithm: str, T: float, x0: float, n: int) -> str:
     """
     Build a filesystem-safe filename stem for one batch run.
 
-    :args:
-        algorithm: One of 'modified', 'nonhomogeneous', 'linear'.
+    Args:
+        algorithm: One of ``\"modified\"``, ``\"nonhomogeneous\"``, or ``\"linear\"``.
         T: Time parameter (or t0 for linear).
         x0: Spatial measurement point.
         n: Number of time measurements.
 
-    :returns:
-        Stem string suitable for a PNG filename (e.g. modified_T5_0_x0_1_41_n20).
+    Returns:
+        Stem string suitable for a PNG filename
+        (e.g. ``modified_T5_0_x0_1_41_n20``).
     """
     t_str = str(T).replace(".", "_").replace("-", "m")
     x0_str = str(round(x0, 4)).replace(".", "_")
@@ -215,10 +220,10 @@ def _run_single_reconstruction(
     x_grid: np.ndarray,
 ) -> None:
     """
-    Run one reconstruction for the given (algorithm, T, x0, n) and save plot.
+    Run one reconstruction for the given (algorithm, T, x0, n) and save a plot.
 
-    :args:
-        algorithm: One of 'modified', 'nonhomogeneous', 'linear'.
+    Args:
+        algorithm: One of ``\"modified\"``, ``\"nonhomogeneous\"``, or ``\"linear\"``.
         T: Time parameter (or t0 for linear).
         x0: Spatial measurement point.
         n: Number of time measurements.
@@ -259,7 +264,8 @@ def _run_single_reconstruction(
             show=False,
         )
     else:
-        assert algorithm == "linear"
+        if algorithm != "linear":
+            raise ValueError(f"Unknown algorithm: {algorithm!r}")
         t0 = T
         f_true_vals, bar_f_n_vals = compute_linear_t_j_homogeneous(
             n, t0, x0, x_grid, f_true=_default_f_true_linear

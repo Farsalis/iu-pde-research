@@ -6,11 +6,16 @@ This repository contains research code for **PDE initial temperature profile rec
 
 ## Documentation
 
-All public modules, classes, and functions must have docstrings. Format and conventions are defined in the **Python styling guide** (Rule D.1.4): one-line summary, blank line, then body with `:args:`, `:returns:`, `:raises:` as applicable. Omit return description when it is obvious from the type hint.
+All public modules, classes, and functions must have docstrings. Format and
+conventions are defined in the **Python styling guide** (Rule D.1.4): one-line
+summary, optional blank line, then body using Google-style sections
+(`Args:`, `Returns:`, `Raises:`) as applicable. Omit a `Returns` section when
+the return semantics are already obvious from the type hint.
 
 - **Location:** `./docs/RULES.md`
 
-Please read the relevant sections (formatting, naming, imports, type hints, docstrings, testing) before opening a pull request.
+Please read the relevant sections (formatting, naming, imports, type hints,
+docstrings, testing) before opening a pull request.
 
 ## Before you open a PR
 

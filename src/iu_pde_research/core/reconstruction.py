@@ -4,7 +4,7 @@ Entry points: compute_modified_t_j (homogeneous), compute_modified_t_j_nonhomoge
 (with optional forcing F(x,t)), and compute_linear_t_j_homogeneous (linear time
 sequence). Each returns (f_true_vals, bar_f_n_vals) on the given x_grid.
 
-NOTE: We represent functions using numpy arrays NDArray[any] in order to use numpy's vectorized operations.
+NOTE: We represent functions using numpy arrays (NDArray) for vectorized ops.
 """
 
 from collections.abc import Callable
@@ -28,17 +28,22 @@ def compute_modified_t_j(
     f_true: Callable[[float], float] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Reconstruct initial condition using modified t_j method (homogeneous). Same layout as homogeneous approximation scheme.
+    Reconstruct initial condition using the modified t_j method (homogeneous).
 
-    :args:
+    Same layout as the homogeneous approximation scheme.
+
+    Args:
         n: Number of time measurements.
         T: Time scaling parameter.
         x0: Spatial measurement point.
         x_grid: Grid of x values for reconstruction.
-        f_true: True initial condition function. If None, uses default.
+        f_true: True initial condition function. If None, uses the default
+            initial condition.
 
-    :returns:
-        Tuple of (f_true_vals, bar_f_n_vals) where f_true_vals is the true initial condition on x_grid and bar_f_n_vals is the reconstructed initial condition on x_grid.
+    Returns:
+        Tuple of `(f_true_vals, bar_f_n_vals)` where `f_true_vals` is the true
+        initial condition on `x_grid` and `bar_f_n_vals` is the reconstructed
+        initial condition on `x_grid`.
     """
     if f_true is None:
         f_true = get_default_f_true
@@ -95,19 +100,24 @@ def compute_modified_t_j_nonhomogeneous(
     L: float = np.pi,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Reconstruct initial condition using modified t_j method (non-homogeneous). Same layout as non-homogeneous approximation scheme.
+    Reconstruct initial condition using the modified t_j method (non-homogeneous).
 
-    :args:
+    Same layout as the non-homogeneous approximation scheme.
+
+    Args:
         n: Number of time measurements.
         T: Time scaling parameter.
         x0: Spatial measurement point.
         x_grid: Grid of x values for reconstruction.
-        F: Forcing function F(x, t). If None, assumes homogeneous case.
-        f_true: True initial condition function. If None, uses default.
+        F: Forcing function F(x, t). If None, assumes the homogeneous case.
+        f_true: True initial condition function. If None, uses the default
+            initial condition.
         L: Domain length. Defaults to pi.
 
-    :returns:
-        Tuple of (f_true_vals, bar_f_n_vals) where f_true_vals is the true initial condition on x_grid and bar_f_n_vals is the reconstructed initial condition on x_grid.
+    Returns:
+        Tuple of `(f_true_vals, bar_f_n_vals)` where `f_true_vals` is the true
+        initial condition on `x_grid` and `bar_f_n_vals` is the reconstructed
+        initial condition on `x_grid`.
     """
     t_vec = compute_t_vec(n, T)
 
@@ -120,7 +130,10 @@ def compute_modified_t_j_nonhomogeneous(
     # Synthetic measurements representing those from sensor for (x0, t_k)
     if abs(L - np.pi) < 1e-10:  # Equal to pi
         f_hat_vals = np.array(
-            [quad(lambda x: f_true(x) * np.sin(j * x), 0, L)[0] * 2 / L for j in j_vals]
+            [
+                quad(lambda x, j_val=j: f_true(x) * np.sin(j_val * x), 0, L)[0] * 2 / L
+                for j in j_vals
+            ]
         )
 
         j_squared = j_vals**2
@@ -128,7 +141,13 @@ def compute_modified_t_j_nonhomogeneous(
     else:
         f_hat_vals = np.array(
             [
-                quad(lambda x: f_true(x) * np.sin(j * np.pi * x / L), 0, L)[0] * 2 / L
+                quad(
+                    lambda x, j_val=j: f_true(x) * np.sin(j_val * np.pi * x / L),
+                    0,
+                    L,
+                )[0]
+                * 2
+                / L
                 for j in j_vals
             ]
         )
@@ -215,42 +234,47 @@ def compute_linear_t_j_homogeneous(
     f_true: Callable[[float], float] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Reconstruct initial condition using linear time sequence method.
+    Reconstruct initial condition using a linear time sequence method.
 
-    :args:
+    Args:
         n: Number of time measurements.
         t0: Initial time step.
         x0: Spatial measurement point.
         x_grid: Grid of x values for reconstruction.
-        f_true: True initial condition function. If None, uses default.
+        f_true: True initial condition function. If None, uses the default
+            initial condition.
 
-    :returns:
-        Tuple of (f_true_vals, bar_f_n_vals) where f_true_vals is the true initial condition on x_grid and bar_f_n_vals is the reconstructed initial condition on x_grid.
+    Returns:
+        Tuple of `(f_true_vals, bar_f_n_vals)` where `f_true_vals` is the true
+        initial condition on `x_grid` and `bar_f_n_vals` is the reconstructed
+        initial condition on `x_grid`.
     """
     if f_true is None:
         f_true = get_default_f_true
 
-    def t_k(k, T):
+    def t_k(k: int, t_param: float) -> float:
         """Compute time for measurement k."""
-        return (n + k - 1) * T
+        return (n + k - 1) * t_param
 
     t_vec = np.array([t_k(k, t0) for k in range(1, n + 1)])
 
-    def f_hat_true(j):
+    def f_hat_true(j: int) -> float:
         """Compute Fourier coefficient for mode j."""
-        integrand = lambda x: f_true(x) * np.sin(j * x)
+
+        def integrand(x: float) -> float:
+            return float(f_true(x) * np.sin(j * x))
+
         result, _ = quad(integrand, 0, np.pi)
+        return float(result * 2 / np.pi)
 
-        return result * 2 / np.pi
-
-    def u_xtk(x0, t_k, n_terms=50):
+    def u_xtk(x0_val: float, t_vec_in: np.ndarray, n_terms: int = 50) -> np.ndarray:
         """Compute solution at x0 for given times."""
-        results = []
+        results: list[float] = []
 
-        for t in t_k:
-            sum_val = 0
+        for t in t_vec_in:
+            sum_val = 0.0
             for j in range(1, n_terms + 1):
-                sum_val += np.exp(-(j**2) * t) * f_hat_true(j) * np.sin(j * x0)
+                sum_val += np.exp(-(j**2) * t) * f_hat_true(j) * np.sin(j * x0_val)
             results.append(sum_val)
 
         return np.array(results)
@@ -275,13 +299,13 @@ def compute_linear_t_j_homogeneous(
                 np.exp(k**2 * tk) * (u_data[k - 1] - sum_prev) / np.sin(k * x0)
             )
 
-    def bar_f_n(x):
+    def bar_f_n(x: float) -> float:
         """Reconstructed function."""
-        return sum(
-            [bar_f_hat[k - 1] * np.sin(k * x) for k in range(1, len(bar_f_hat) + 1)]
+        return float(
+            sum(bar_f_hat[k - 1] * np.sin(k * x) for k in range(1, len(bar_f_hat) + 1))
         )
 
     f_true_vals = f_true(x_grid)
-    bar_f_n_vals = np.array([bar_f_n(x) for x in x_grid])
+    bar_f_n_vals = np.array([bar_f_n(float(x)) for x in x_grid])
 
     return f_true_vals, bar_f_n_vals
