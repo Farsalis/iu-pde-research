@@ -56,16 +56,29 @@ def run_benchmark(cfg: BenchmarkConfig) -> None:
     print(f"n = {cfg.n}, |x_grid| = {cfg.m}, T = {cfg.T}, x0 = {cfg.x0:.6f}")
     print()
 
+    # Define default forcing F(x,t)=sin(x)*exp(-t) and its spatial derivative
+    # F_x(x,t)=cos(x)*exp(-t) to match the CLI demo and avoid JAX autodiff in
+    # the CPU path (we do not want make_F_x_from_F here).
+    def F_default(x: float, t: float) -> float:
+        return float(np.sin(x) * np.exp(-t))
+
+    def F_x_default(x: float, t: float) -> float:
+        return float(np.cos(x) * np.exp(-t))
+
     # Warm-up CPU implementation.
     print("Warming up CPU implementation...")
-    compute_modified_t_j_nonhomogeneous(cfg.n, cfg.T, cfg.x0, x_grid)
+    compute_modified_t_j_nonhomogeneous(
+        cfg.n, cfg.T, cfg.x0, x_grid, F=F_default, F_x=F_x_default
+    )
 
     if cp is None:
         print("CuPy not installed; skipping CuPy benchmark.")
         return
 
     print("Warming up CuPy implementation (includes initial kernel setup)...")
-    compute_modified_t_j_nonhomogeneous_cupy(cfg.n, cfg.T, cfg.x0, x_grid)
+    compute_modified_t_j_nonhomogeneous_cupy(
+        cfg.n, cfg.T, cfg.x0, x_grid, F=F_default
+    )
 
     # Time CPU implementation.
     print("\nTiming CPU (NumPy/SciPy) implementation...")
@@ -75,6 +88,8 @@ def run_benchmark(cfg: BenchmarkConfig) -> None:
         cfg.T,
         cfg.x0,
         x_grid,
+        F_default,
+        F_x_default,
         repeats=cfg.repeats,
     )
     cpu_mean = statistics.mean(cpu_times)
@@ -88,6 +103,7 @@ def run_benchmark(cfg: BenchmarkConfig) -> None:
         cfg.T,
         cfg.x0,
         x_grid,
+        F_default,
         repeats=cfg.repeats,
     )
     cupy_mean = statistics.mean(cupy_times)

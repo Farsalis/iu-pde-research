@@ -14,10 +14,9 @@ from collections.abc import Callable
 
 import numpy as np
 
-from iu_pde_research.core.forcing import (
-    compute_forcing_contribution_at_time,
-    compute_forcing_truncation_constant_C,
-    compute_n_k,
+from iu_pde_research.core.forcing import compute_n_k
+from iu_pde_research.core.forcing_cupy import (
+    compute_forcing_contribution_at_time_default_F_cupy,
 )
 from iu_pde_research.core.utils import compute_t_vec, get_default_f_true
 
@@ -125,36 +124,41 @@ def compute_modified_t_j_nonhomogeneous_cupy(
     u_homogeneous_cp = cp.sum(exp_matrix_cp * f_hat_vals_cp * sin_j_x0_cp, axis=1)
     u_homogeneous = cp.asnumpy(u_homogeneous_cp)
 
-    # --- Forcing contribution u_forcing at x0, t_k (CPU) -------------------
-    if F is not None and F_x is None:
-        # For CuPy path we mirror the CPU truncation logic and only need C.
-        from iu_pde_research.core.forcing_autodiff import make_F_x_from_F
-
-        F_x = make_F_x_from_F(F)
-
-    C: float = 0.0
-    if F is not None and F_x is not None:
-        C = compute_forcing_truncation_constant_C(F_x, T, L)
-
     if F is not None:
+        # Specialized CuPy forcing kernel for the default demo forcing
+        # F(x,t) = sin(x)*exp(-t) on L = pi. For other F, this function
+        # should currently not be used.
+        if L != np.pi:
+            msg = (
+                "compute_modified_t_j_nonhomogeneous_cupy currently only supports "
+                "F != None for L = pi."
+            )
+            raise ValueError(msg)
+
+        # For F(x,t) = sin(x) * exp(-t), F_x(x,s) = cos(x) * exp(-s) and
+        # C = (2/L) * max_s ||F_x(·,s)||_{L^1(0,L)} = 4/pi.
+        C_default = 4.0 / np.pi
+
+        def _n_terms_forcing(k: int, tk_val: float) -> int:
+            n_k = compute_n_k(k, tk_val, C_default)
+            if MAX_FORCING_MODES is not None:
+                n_k = min(n_k, MAX_FORCING_MODES)
+            return max(1, n_k)
+
         u_forcing = np.array(
             [
-                compute_forcing_contribution_at_time(
-                    F,
+                compute_forcing_contribution_at_time_default_F_cupy(
                     tk,
                     x0,
-                    (
-                        min(compute_n_k(k, tk, C), MAX_FORCING_MODES)
-                        if MAX_FORCING_MODES is not None
-                        else compute_n_k(k, tk, C)
-                    ),
-                    L,
+                    n_terms=_n_terms_forcing(k, float(tk)),
+                    L=L,
                 )
                 for k, tk in enumerate(t_vec, start=1)
             ]
         )
         u_data = u_homogeneous + u_forcing
     else:
+        u_forcing = None
         u_data = u_homogeneous
 
     # --- Reconstruction step on GPU (bar_f_hat, bar_f_n) -------------------
@@ -171,11 +175,18 @@ def compute_modified_t_j_nonhomogeneous_cupy(
         k_squared_cache_cp = (k_indices * cp.pi / L) ** 2
 
     u_data_cp = cp.asarray(u_data)
+    u_forcing_cp = cp.asarray(u_forcing) if u_forcing is not None else None
     t_vec_cp_full = t_vec_cp  # alias with clearer name
 
     for k in range(1, max_k + 1):
         tk = t_vec_cp_full[k - 1]
-        u_data_k = u_data_cp[k - 1]
+        # Start from u(x0, tk); when forcing is present, subtract the
+        # forcing contribution to recover the homogeneous part, mirroring
+        # the CPU algorithm.
+        if u_forcing_cp is not None:
+            u_data_k = u_data_cp[k - 1] - u_forcing_cp[k - 1]
+        else:
+            u_data_k = u_data_cp[k - 1]
 
         if k == 1:
             c_bar_1 = cp.exp(k_squared_cache_cp[0] * tk) * u_data_k
@@ -185,15 +196,6 @@ def compute_modified_t_j_nonhomogeneous_cupy(
             exp_terms = cp.exp(-k_squared_cache_cp[j_indices - 1] * tk)
             c_bar_prev = bar_f_hat_cp[j_indices - 1] * sin_k_x0_cp[j_indices - 1]
             sum_prev = cp.sum(exp_terms * c_bar_prev)
-
-            if F is not None:
-                n_k = compute_n_k(k, float(tk), C)
-                if MAX_FORCING_MODES is not None:
-                    n_k = min(n_k, MAX_FORCING_MODES)
-                forcing_contrib = compute_forcing_contribution_at_time(
-                    F, float(tk), x0, n_k, L
-                )
-                u_data_k = u_data_k - forcing_contrib
 
             c_bar_k = cp.exp(k_squared_cache_cp[k - 1] * tk) * (u_data_k - sum_prev)
             bar_f_hat_cp[k - 1] = c_bar_k / sin_k_x0_cp[k - 1]
