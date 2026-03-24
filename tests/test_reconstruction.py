@@ -71,13 +71,16 @@ def test_compute_modified_t_j_nonhomogeneous_F_none_matches_homogeneous(
 def test_compute_modified_t_j_nonhomogeneous_with_F_finite(
     x_grid: np.ndarray, small_n: int, T: float, x0: float
 ) -> None:
-    """Nonhomogeneous with simple F returns finite values."""
+    """Nonhomogeneous with simple F and F_x returns finite values."""
 
     def F_simple(x: float, t: float) -> float:
         return np.sin(x) * np.exp(-t)
 
+    def F_x_simple(x: float, s: float) -> float:
+        return np.cos(x) * np.exp(-s)
+
     f_vals, bar_vals = compute_modified_t_j_nonhomogeneous(
-        small_n, T, x0, x_grid, F=F_simple
+        small_n, T, x0, x_grid, F=F_simple, F_x=F_x_simple
     )
     assert np.all(np.isfinite(f_vals))
     assert np.all(np.isfinite(bar_vals))

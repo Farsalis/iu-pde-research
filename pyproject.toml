@@ -44,7 +44,7 @@ select = [
     "C4",
     "RUF",
 ]
-ignore = []
+ignore = ["N802", "N803", "N806", "S307"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["iu_pde_research"]

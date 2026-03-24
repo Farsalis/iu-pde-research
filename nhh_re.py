@@ -8,6 +8,7 @@ and linear sequence demos; --interactive opens a plot with n, T, x0 controls;
 
 import argparse
 import sys
+from collections.abc import Callable
 from itertools import product
 from pathlib import Path
 
@@ -16,8 +17,10 @@ import numpy as np
 from scipy.constants import golden
 
 from iu_pde_research.core import (
+    INITIAL_CONDITION_OPTIONS,
     compute_linear_t_j_homogeneous,
     compute_modified_t_j,
+    compute_modified_t_j_jax,
     compute_modified_t_j_nonhomogeneous,
 )
 from iu_pde_research.visualization import (
@@ -51,13 +54,13 @@ def _parse_float_expr(s: str) -> float:
     """
     Parse a string as a float or as a safe expression (e.g. np.pi / golden).
 
-    :args:
-        s: A numeric string or expression using names from _EXPR_NAMESPACE.
+    Args:
+        s: A numeric string or expression using names from `_EXPR_NAMESPACE`.
 
-    :returns:
+    Returns:
         The evaluated float value.
 
-    :raises:
+    Raises:
         ValueError: If the string is not a valid number or expression.
     """
     s_stripped = s.strip()
@@ -66,23 +69,25 @@ def _parse_float_expr(s: str) -> float:
     except ValueError:
         pass
     try:
-        result = eval(s_stripped, _EXPR_NAMESPACE, {})  # nosec B307 — restricted namespace for CLI
+        # Restricted evaluation namespace to satisfy bandit (no arbitrary builtins).
+        result = eval(s_stripped, {"__builtins__": {}}, _EXPR_NAMESPACE)  # nosec B307
         return float(result)
     except Exception as e:
-        raise ValueError(f"Invalid expression for float: {s_stripped!r}: {e}") from e
+        msg = f"Invalid expression for float: {s_stripped!r}: {e}"
+        raise ValueError(msg) from e
 
 
 def _parse_int_expr(s: str) -> int:
     """
     Parse a string as an int or as a safe expression (e.g. 2 * 10).
 
-    :args:
-        s: A numeric string or expression using names from _EXPR_NAMESPACE.
+    Args:
+        s: A numeric string or expression using names from `_EXPR_NAMESPACE`.
 
-    :returns:
+    Returns:
         The evaluated integer value.
 
-    :raises:
+    Raises:
         ValueError: If the string is not a valid integer or expression.
     """
     s_stripped = s.strip()
@@ -91,13 +96,15 @@ def _parse_int_expr(s: str) -> int:
     except ValueError:
         pass
     try:
-        result = eval(s_stripped, _EXPR_NAMESPACE, {})  # nosec B307 — restricted namespace for CLI
+        # Restricted evaluation namespace to satisfy bandit (no arbitrary builtins).
+        result = eval(s_stripped, {"__builtins__": {}}, _EXPR_NAMESPACE)  # nosec B307
         return int(round(result))
     except Exception as e:
-        raise ValueError(f"Invalid expression for int: {s_stripped!r}: {e}") from e
+        msg = f"Invalid expression for int: {s_stripped!r}: {e}"
+        raise ValueError(msg) from e
 
 
-def _default_f_true_nonhomogeneous(x: float) -> float:
+def _default_f_true_nonhomogeneous(x: float | np.ndarray) -> float | np.ndarray:
     """Initial condition used for non-homogeneous demo and batch."""
     return (1 / 8) * np.sin(2 * x) + (1 / 18) * np.sin(3 * x)
 
@@ -106,15 +113,23 @@ def _default_f_true_nonhomogeneous(x: float) -> float:
 
 
 def _default_F(x: float, t: float) -> float:
-    """Forcing term used for non-homogeneous demo and batch."""
-    # julia_returned_result = jl._default_julia_F(x, t)
-    return np.sin(x) * np.exp(-t)
+    """Forcing term used for non-homogeneous demo and batch.
+
+    Uses JAX (jax.numpy) so that F_x = ∂F/∂x can be obtained via autodiff when
+    F_x is not supplied. Returns a float-convertible value (Python float
+    or 0-dim JAX array); call sites that need float use float().
+    """
+    # Delayed import so the CLI works even when JAX is not installed,
+    # unless the user explicitly requests a JAX-based computation.
+    import jax.numpy as jnp
+
+    return jnp.sin(x) * jnp.exp(-t)
 
 
 ############################################################################
 
 
-def _default_f_true_linear(x: float) -> float:
+def _default_f_true_linear(x: float | np.ndarray) -> float | np.ndarray:
     """Initial condition used for linear sequence demo and batch."""
     return np.sin(2 * x) + 0.5 * np.sin(5 * x)
 
@@ -123,7 +138,7 @@ def _parse_args() -> argparse.Namespace:
     """
     Build and parse command-line arguments for demo and batch modes.
 
-    :returns:
+    Returns:
         Parsed namespace with optional interactive, nonhomogeneous, and
         batch fields (algorithm, T, x0, n, output_dir).
     """
@@ -185,6 +200,25 @@ def _parse_args() -> argparse.Namespace:
         default=DEFAULT_OUTPUT_DIR,
         help="Output directory for batch plots (created if missing).",
     )
+    parser.add_argument(
+        "--backend",
+        choices=["cpu", "jax", "gpu"],
+        default="cpu",
+        help=(
+            "Backend for reconstruction: 'cpu' (NumPy/SciPy), 'jax' (JAX), "
+            "or 'gpu' (CuPy for nonhomogeneous default forcing)."
+        ),
+    )
+    parser.add_argument(
+        "--initial-condition",
+        choices=list(INITIAL_CONDITION_OPTIONS.keys()),
+        default="default",
+        help=(
+            "True initial condition: 'default' (algorithm-specific), or "
+            "'sine_series_5' / 'sine_series_10' / 'sine_series_15' for "
+            "f(x)=sum_{j=1}^{n} (1/(2j^2))*sin(j*x)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -192,18 +226,29 @@ def _batch_filename_stem(algorithm: str, T: float, x0: float, n: int) -> str:
     """
     Build a filesystem-safe filename stem for one batch run.
 
-    :args:
-        algorithm: One of 'modified', 'nonhomogeneous', 'linear'.
+    Args:
+        algorithm: One of ``\"modified\"``, ``\"nonhomogeneous\"``, or ``\"linear\"``.
         T: Time parameter (or t0 for linear).
         x0: Spatial measurement point.
         n: Number of time measurements.
 
-    :returns:
-        Stem string suitable for a PNG filename (e.g. modified_T5_0_x0_1_41_n20).
+    Returns:
+        Stem string suitable for a PNG filename
+        (e.g. ``modified_T5_0_x0_1_41_n20``).
     """
     t_str = str(T).replace(".", "_").replace("-", "m")
     x0_str = str(round(x0, 4)).replace(".", "_")
     return f"{algorithm}_T{t_str}_x0{x0_str}_n{n}"
+
+
+def _get_f_true_for_algorithm(
+    algorithm: str,
+    initial_condition: str,
+):
+    """Resolve f_true callable: use algorithm default if initial_condition is 'default', else the named option."""
+    if initial_condition == "default":
+        return None
+    return INITIAL_CONDITION_OPTIONS[initial_condition]
 
 
 def _run_single_reconstruction(
@@ -213,12 +258,14 @@ def _run_single_reconstruction(
     n: int,
     output_dir: Path,
     x_grid: np.ndarray,
+    backend: str = "cpu",
+    initial_condition: str = "default",
 ) -> None:
     """
-    Run one reconstruction for the given (algorithm, T, x0, n) and save plot.
+    Run one reconstruction for the given (algorithm, T, x0, n) and save a plot.
 
-    :args:
-        algorithm: One of 'modified', 'nonhomogeneous', 'linear'.
+    Args:
+        algorithm: One of ``\"modified\"``, ``\"nonhomogeneous\"``, or ``\"linear\"``.
         T: Time parameter (or t0 for linear).
         x0: Spatial measurement point.
         n: Number of time measurements.
@@ -228,8 +275,16 @@ def _run_single_reconstruction(
     stem = _batch_filename_stem(algorithm, T, x0, n)
     save_path = output_dir / f"{stem}.png"
 
+    f_true_callable = _get_f_true_for_algorithm(algorithm, initial_condition)
+
     if algorithm == "modified":
-        f_true_vals, bar_f_n_vals = compute_modified_t_j(n, T, x0, x_grid)
+        f_true = f_true_callable if f_true_callable is not None else None
+        if backend == "jax":
+            f_true_vals, bar_f_n_vals = compute_modified_t_j_jax(n, T, x0, x_grid)
+        else:
+            f_true_vals, bar_f_n_vals = compute_modified_t_j(
+                n, T, x0, x_grid, f_true=f_true
+            )
         plot_reconstruction(
             x_grid,
             f_true_vals,
@@ -239,14 +294,40 @@ def _run_single_reconstruction(
             show=False,
         )
     elif algorithm == "nonhomogeneous":
-        f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
-            n,
-            T,
-            x0,
-            x_grid,
-            F=_default_F,
-            f_true=_default_f_true_nonhomogeneous,
-        )
+        if backend == "gpu":
+            try:
+                from iu_pde_research.core.forcing_cupy import (
+                    default_F_cupy,
+                    default_F_x_cupy,
+                )
+            except ImportError as exc:  # pragma: no cover - env dependent
+                msg = (
+                    "backend='gpu' requested for nonhomogeneous batch run, "
+                    "but CuPy-based forcing kernels are not available. "
+                    "Install CuPy or use --backend cpu."
+                )
+                raise RuntimeError(msg) from exc
+
+            f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
+                n,
+                T,
+                x0,
+                x_grid,
+                F=_default_F,
+                f_true=f_true_callable or _default_f_true_nonhomogeneous,
+                backend="gpu",
+                F_gpu=default_F_cupy,
+                F_x_gpu=default_F_x_cupy,
+            )
+        else:
+            f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
+                n,
+                T,
+                x0,
+                x_grid,
+                F=_default_F,
+                f_true=f_true_callable or _default_f_true_nonhomogeneous,
+            )
         plot_reconstruction_with_errors(
             x_grid,
             f_true_vals,
@@ -259,10 +340,15 @@ def _run_single_reconstruction(
             show=False,
         )
     else:
-        assert algorithm == "linear"
+        if algorithm != "linear":
+            raise ValueError(f"Unknown algorithm: {algorithm!r}")
         t0 = T
         f_true_vals, bar_f_n_vals = compute_linear_t_j_homogeneous(
-            n, t0, x0, x_grid, f_true=_default_f_true_linear
+            n,
+            t0,
+            x0,
+            x_grid,
+            f_true=f_true_callable or _default_f_true_linear,
         )
         plot_reconstruction(
             x_grid,
@@ -280,7 +366,7 @@ def modified_t_j() -> None:
     Run factorial t_j method for homogeneous case.
 
     Demonstrates the reconstruction of initial condition using the modified
-    factorial t_j  for the homogeneous heat equation.
+    factorial t_j for the homogeneous heat equation (CPU backend).
     """
     n = 20
     T = 5
@@ -296,7 +382,12 @@ def modified_t_j() -> None:
     )
 
 
-def modified_t_j_nonhomogeneous() -> None:
+def modified_t_j_nonhomogeneous(
+    backend: str = "cpu",
+    f_true: (
+        Callable[[float | np.ndarray], float | np.ndarray] | None
+    ) = None,
+) -> None:
     """
     Run factorial t_j method for non-homogeneous case.
 
@@ -307,14 +398,42 @@ def modified_t_j_nonhomogeneous() -> None:
     T = 5.0
     x0 = np.pi / golden
     x_grid = np.linspace(0, np.pi, 200)
+    if f_true is None:
+        f_true = _default_f_true_nonhomogeneous
 
     print("Computing non-homogeneous reconstruction...")
     print(f"Parameters: n={n}, T={T}, x0={x0:.4f}")
     print("Forcing term: F(x,t) = sin(x) * exp(-t)")
 
-    f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
-        n, T, x0, x_grid, F=_default_F, f_true=_default_f_true_nonhomogeneous
-    )
+    if backend == "gpu":
+        try:
+            from iu_pde_research.core.forcing_cupy import (
+                default_F_cupy,
+                default_F_x_cupy,
+            )
+        except ImportError as exc:  # pragma: no cover - env dependent
+            msg = (
+                "backend='gpu' requested for nonhomogeneous demo, but CuPy-based "
+                "forcing kernels are not available. Install CuPy or use "
+                "--backend cpu."
+            )
+            raise RuntimeError(msg) from exc
+
+        f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
+            n,
+            T,
+            x0,
+            x_grid,
+            F=_default_F,
+            f_true=f_true,
+            backend="gpu",
+            F_gpu=default_F_cupy,
+            F_x_gpu=default_F_x_cupy,
+        )
+    else:
+        f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
+            n, T, x0, x_grid, F=_default_F, f_true=f_true
+        )
 
     plot_reconstruction_with_errors(
         x_grid,
@@ -367,8 +486,13 @@ def main() -> None:
         return
 
     if args.nonhomogeneous:
-        print("Running non-homogeneous case...")
-        modified_t_j_nonhomogeneous()
+        print(f"Running non-homogeneous case (backend={args.backend})...")
+        f_true = (
+            None
+            if args.initial_condition == "default"
+            else INITIAL_CONDITION_OPTIONS[args.initial_condition]
+        )
+        modified_t_j_nonhomogeneous(backend=args.backend, f_true=f_true)
         return
 
     batch = (
@@ -386,7 +510,16 @@ def main() -> None:
         x_grid = np.linspace(0, np.pi, 200)
         total = 0
         for T, x0, n in product(args.T, args.x0, args.n):
-            _run_single_reconstruction(args.algorithm, T, x0, n, output_dir, x_grid)
+            _run_single_reconstruction(
+                args.algorithm,
+                T,
+                x0,
+                n,
+                output_dir,
+                x_grid,
+                backend=args.backend,
+                initial_condition=args.initial_condition,
+            )
             total += 1
         print(f"Saved {total} plot(s) to {output_dir.resolve()}")
         return
@@ -404,8 +537,22 @@ def main() -> None:
         )
         sys.exit(1)
 
-    print("Running Modified t_j method (homogeneous)...")
-    modified_t_j()
+    print(f"Running Modified t_j method (homogeneous, backend={args.backend})...")
+    if args.backend == "jax":
+        n = 20
+        T = 5
+        x0 = np.sqrt(2)
+        x_grid = np.linspace(0, np.pi, 200)
+        f_true_vals, bar_f_n_vals = compute_modified_t_j_jax(n, T, x0, x_grid)
+        plot_reconstruction(
+            x_grid,
+            f_true_vals,
+            bar_f_n_vals,
+            title="Initial Condition Reconstruction (Modified t_j, JAX backend)",
+            save_path="modified_t_j_jax.png",
+        )
+    else:
+        modified_t_j()
     print("\nRunning Linear sequence method...")
     linear_sequence()
     print("\nDone!")
