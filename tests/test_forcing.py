@@ -27,7 +27,7 @@ def test_compute_F_hat_j_simple_F_finite() -> None:
     """compute_F_hat_j returns finite value for F(x,t)=sin(x)."""
 
     def F_sin_x(x: float, t: float) -> float:
-        return np.sin(x)
+        return float(np.sin(x))
 
     result = compute_F_hat_j(F_sin_x, 1, 0.0)
     assert np.isfinite(result)
@@ -38,7 +38,7 @@ def test_compute_F_hat_j_sin_x_mode1_positive() -> None:
     """For F(x,t)=sin(x), mode j=1 should give positive coefficient."""
 
     def F_sin_x(x: float, t: float) -> float:
-        return np.sin(x)
+        return float(np.sin(x))
 
     result = compute_F_hat_j(F_sin_x, 1, 0.0)
     assert result > 0
@@ -60,7 +60,7 @@ def test_compute_forcing_contribution_at_time_simple_F_finite() -> None:
     """compute_forcing_contribution_at_time returns finite value for simple F."""
 
     def F_simple(x: float, t: float) -> float:
-        return np.sin(x) * np.exp(-t)
+        return float(np.sin(x) * np.exp(-t))
 
     result = compute_forcing_contribution_at_time(
         F_simple, tk=0.2, x0=np.pi / 2, n_terms=5

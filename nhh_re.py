@@ -4,6 +4,8 @@ CLI for running reconstruction methods: by default runs modified t_j (homogeneou
 and linear sequence demos; --interactive opens a plot with n, T, x0 controls;
 --nonhomogeneous runs one non-homogeneous demo; batch mode uses --algorithm with
 --T, --x0, --n (and optional --output-dir). Run with --help for full options.
+
+NOTE: DIRICHLET BOUNDARY CONDITIONS ARE ASSUMED FOR EACH FUNCTIONS. DOES NOT SUPPORT PERIODIC OR NEUMANN.
 """
 
 import argparse
@@ -18,6 +20,7 @@ from scipy.constants import golden
 from iu_pde_research.core import (
     compute_linear_t_j_homogeneous,
     compute_modified_t_j,
+    compute_modified_t_j_homogeneous_complex,
     compute_modified_t_j_nonhomogeneous,
 )
 from iu_pde_research.visualization import (
@@ -51,13 +54,13 @@ def _parse_float_expr(s: str) -> float:
     """
     Parse a string as a float or as a safe expression (e.g. np.pi / golden).
 
-    :args:
+    Args:
         s: A numeric string or expression using names from _EXPR_NAMESPACE.
 
-    :returns:
+    Returns:
         The evaluated float value.
 
-    :raises:
+    Raises:
         ValueError: If the string is not a valid number or expression.
     """
     s_stripped = s.strip()
@@ -76,13 +79,13 @@ def _parse_int_expr(s: str) -> int:
     """
     Parse a string as an int or as a safe expression (e.g. 2 * 10).
 
-    :args:
+    Args:
         s: A numeric string or expression using names from _EXPR_NAMESPACE.
 
-    :returns:
+    Returns:
         The evaluated integer value.
 
-    :raises:
+    Raises:
         ValueError: If the string is not a valid integer or expression.
     """
     s_stripped = s.strip()
@@ -92,14 +95,14 @@ def _parse_int_expr(s: str) -> int:
         pass
     try:
         result = eval(s_stripped, _EXPR_NAMESPACE, {})  # nosec B307 — restricted namespace for CLI
-        return int(round(result))
+        return round(float(result))
     except Exception as e:
         raise ValueError(f"Invalid expression for int: {s_stripped!r}: {e}") from e
 
 
 def _default_f_true_nonhomogeneous(x: float) -> float:
     """Initial condition used for non-homogeneous demo and batch."""
-    return (1 / 8) * np.sin(2 * x) + (1 / 18) * np.sin(3 * x)
+    return float((1 / 8) * np.sin(2 * x) + (1 / 18) * np.sin(3 * x))
 
 
 #############################################################################
@@ -108,7 +111,7 @@ def _default_f_true_nonhomogeneous(x: float) -> float:
 def _default_F(x: float, t: float) -> float:
     """Forcing term used for non-homogeneous demo and batch."""
     # julia_returned_result = jl._default_julia_F(x, t)
-    return np.sin(x) * np.exp(-t)
+    return float(np.sin(x) * np.exp(-t))
 
 
 ############################################################################
@@ -116,14 +119,14 @@ def _default_F(x: float, t: float) -> float:
 
 def _default_f_true_linear(x: float) -> float:
     """Initial condition used for linear sequence demo and batch."""
-    return np.sin(2 * x) + 0.5 * np.sin(5 * x)
+    return float(np.sin(2 * x) + 0.5 * np.sin(5 * x))
 
 
 def _parse_args() -> argparse.Namespace:
     """
     Build and parse command-line arguments for demo and batch modes.
 
-    :returns:
+    Returns:
         Parsed namespace with optional interactive, nonhomogeneous, and
         batch fields (algorithm, T, x0, n, output_dir).
     """
@@ -133,16 +136,36 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--interactive",
         action="store_true",
-        help="Start interactive plot with parameter controls.",
+        help="Start interactive plot with parameter controls for non-homogeneous modified t_j case.",
     )
     parser.add_argument(
-        "--nonhomogeneous",
+        "--modified_homogeneous",
+        action="store_true",
+        help="Run homogeneous reconstruction once (demo).",
+    )
+    parser.add_argument(
+        "--modified_nonhomogeneous",
         action="store_true",
         help="Run non-homogeneous reconstruction once (demo).",
     )
     parser.add_argument(
+        "--modified_complex_homogeneous",
+        action="strore_true",
+        help="Run homogeneous reconstruction for complex case once (demo).",
+    )
+    parser.add_argument(
+        "--linear_homogeneous",
+        action="strore_true",
+        help="Run homogeneous reconstruction for linear t_j (demo).",
+    )
+    parser.add_argument(
         "--algorithm",
-        choices=["modified", "nonhomogeneous", "linear"],
+        choices=[
+            "modified_homogeneous",
+            "modified_nonhomogeneous",
+            "modified_complex_homogeneous",
+            "linear_homogeneous",
+        ],
         default=None,
         help="Reconstruction algorithm for batch mode.",
     )
@@ -192,13 +215,13 @@ def _batch_filename_stem(algorithm: str, T: float, x0: float, n: int) -> str:
     """
     Build a filesystem-safe filename stem for one batch run.
 
-    :args:
+    Args:
         algorithm: One of 'modified', 'nonhomogeneous', 'linear'.
         T: Time parameter (or t0 for linear).
         x0: Spatial measurement point.
         n: Number of time measurements.
 
-    :returns:
+    Returns:
         Stem string suitable for a PNG filename (e.g. modified_T5_0_x0_1_41_n20).
     """
     t_str = str(T).replace(".", "_").replace("-", "m")
@@ -217,7 +240,7 @@ def _run_single_reconstruction(
     """
     Run one reconstruction for the given (algorithm, T, x0, n) and save plot.
 
-    :args:
+    Args:
         algorithm: One of 'modified', 'nonhomogeneous', 'linear'.
         T: Time parameter (or t0 for linear).
         x0: Spatial measurement point.
@@ -228,17 +251,17 @@ def _run_single_reconstruction(
     stem = _batch_filename_stem(algorithm, T, x0, n)
     save_path = output_dir / f"{stem}.png"
 
-    if algorithm == "modified":
+    if algorithm == "modified_homogeneous":
         f_true_vals, bar_f_n_vals = compute_modified_t_j(n, T, x0, x_grid)
         plot_reconstruction(
             x_grid,
             f_true_vals,
             bar_f_n_vals,
-            title=f"Initial Condition Reconstruction (Modified t_j) n={n}, T={T}",
+            title="Initial Temperature Profile Reconstruction (Modified t_j - Homogeneous)\n",
             save_path=str(save_path),
             show=False,
         )
-    elif algorithm == "nonhomogeneous":
+    elif algorithm == "modified_nonhomogeneous":
         f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
             n,
             T,
@@ -252,14 +275,29 @@ def _run_single_reconstruction(
             f_true_vals,
             bar_f_n_vals,
             title=(
-                "Initial Temperature Profile Reconstruction (Non-Homogeneous)\n"
+                "Initial Temperature Profile Reconstruction (Modified t_j - Non-Homogeneous)\n"
+                f"n={n}, T={T}, x0={x0:.4f}"
+            ),
+            save_path=str(save_path),
+            show=False,
+        )
+    elif algorithm == "modified_complex_homogeneous":
+        f_true_vals, bar_f_n_vals = compute_modified_t_j_homogeneous_complex(
+            n, T, x0, x_grid
+        )
+        plot_reconstruction_with_errors(
+            x_grid,
+            f_true_vals,
+            bar_f_n_vals,
+            title=(
+                "Initial Temperature Profile Complex Reconstruction (Modified t_j - Homogeneous)\n"
                 f"n={n}, T={T}, x0={x0:.4f}"
             ),
             save_path=str(save_path),
             show=False,
         )
     else:
-        assert algorithm == "linear"
+        assert algorithm == "linear_homogeneous"
         t0 = T
         f_true_vals, bar_f_n_vals = compute_linear_t_j_homogeneous(
             n, t0, x0, x_grid, f_true=_default_f_true_linear
@@ -268,11 +306,17 @@ def _run_single_reconstruction(
             x_grid,
             f_true_vals,
             bar_f_n_vals,
-            title=f"Initial Condition Reconstruction (Linear t_j) n={n}, t0={t0}",
+            title="Initial Condition Reconstruction (Linear t_j - Homogeneous)",
             save_path=str(save_path),
             show=False,
         )
     plt.close()
+
+
+############################################################################
+# FUNCTIONS THAT RUN CONSTRUCTIONS WITH CUSTOM VARIABLES
+# CALL SAME FUNCTIONS IN reconstruction.py
+############################################################################
 
 
 def modified_t_j() -> None:
@@ -281,6 +325,8 @@ def modified_t_j() -> None:
 
     Demonstrates the reconstruction of initial condition using the modified
     factorial t_j  for the homogeneous heat equation.
+
+    Current implementation uses default f_true in the reconstruction function.
     """
     n = 20
     T = 5
@@ -331,6 +377,39 @@ def modified_t_j_nonhomogeneous() -> None:
     )
 
 
+def modified_t_j_homogeneous_complex() -> None:
+    """
+    Run factorial t_j method for homogeneous complex case.
+
+    Demonstrates the reconstruction of initial condition using the modified
+    factorial t_j method for the homogeneous heat equation using complex notation.
+
+    Current implementation uses default f_true in the reconstruction function.
+    """
+    n = 20
+    T = 5.0
+    x0 = 2 * np.sqrt(2)
+    x_grid = np.linspace(0, np.pi, 200)
+
+    print("Computing complex homogeneous reconstruction...")
+    print(f"Parameters: n={n}, T={T}, x0={x0:.4f}")
+
+    f_true_vals, bar_f_n_vals = compute_modified_t_j_homogeneous_complex(
+        n, T, x0, x_grid
+    )
+
+    plot_reconstruction(
+        x_grid,
+        f_true_vals,
+        bar_f_n_vals,
+        title=(
+            "Initial Temperature Profile Reconstruction for Homogeneous Complex Case \n"
+            f"n = {n}, T={T}"
+        ),
+        save_path="modified_t_j_homogeneous_complex.png",
+    )
+
+
 def linear_sequence() -> None:
     """
     Run linear sequence method for reconstruction.
@@ -356,19 +435,32 @@ def linear_sequence() -> None:
     )
 
 
+############################################################################
+
+
 def main() -> None:
     """Main entry point for command-line interface."""
     args = _parse_args()
 
     if args.interactive:
-        print("Starting interactive mode...")
+        print("Starting interactive mode for non-homogeneous case...")
         print("Use the text boxes to adjust n, T, and x0 parameters.")
         create_interactive_plot()
         return
-
-    if args.nonhomogeneous:
+    elif args.modified_nonhomogeneous:
         print("Running non-homogeneous case...")
         modified_t_j_nonhomogeneous()
+        return
+    elif args.modified_homogeneous:
+        print("Running homogeneous case...")
+        modified_t_j()
+    elif args.modified_complex_homogeneous:
+        print("Running homogeneous complex case...")
+        modified_t_j_homogeneous_complex()
+        return
+    elif args.linear_homogeneous:
+        print("Running linear t_j homogeneous case...")
+        linear_sequence()
         return
 
     batch = (
@@ -404,15 +496,22 @@ def main() -> None:
         )
         sys.exit(1)
 
-    print("Running Modified t_j method (homogeneous)...")
-    modified_t_j()
-    print("\nRunning Linear sequence method...")
-    linear_sequence()
     print("\nDone!")
     print("\nTo run interactive mode, use: python nhh_re.py --interactive")
-    print("To run non-homogeneous case, use: python nhh_re.py --nonhomogeneous")
     print(
-        "For batch runs: python nhh_re.py --algorithm modified --T 5 --x0 1.41 "
+        "\nTo run homogeneous case w/ modified t_j, use: python nhh_re.py --modified_homogeneous"
+    )
+    print(
+        "\nTo run homogeneous case w/ linear t_j, use: python nhh_re.py --linear_homogeneous"
+    )
+    print(
+        "\nTo run non-homogeneous case w/ modified t_j, use: python nhh_re.py --modified_nonhomogeneous"
+    )
+    print(
+        "\nTo run complex homogeneous case w/ modified t_j, use: python nhh_re.py --modified_complex_homogeneous"
+    )
+    print(
+        "For batch runs: python nhh_re.py --algorithm modified_homogeneous --T 5 --x0 1.41 "
         "--n 20 [--output-dir DIR]"
     )
 

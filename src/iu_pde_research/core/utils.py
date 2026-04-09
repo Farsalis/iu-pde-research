@@ -7,11 +7,12 @@ faster time-vector computation.
 """
 
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 from scipy.integrate import quad
 
-# Allows to compile factorials just in time.
+# Allows us to compile factorials just in time.
 try:
     from numba import jit, prange
 
@@ -19,10 +20,12 @@ try:
 except ImportError:
     NUMBA_AVAILABLE = False
 
-    def jit(*args, **kwargs):
+    def jit(
+        *args: Any, **kwargs: Any
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Dummy decorator when numba is not available."""
 
-        def decorator(func):
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             return func
 
         return decorator
@@ -37,13 +40,13 @@ def get_default_f_true(x: float) -> float:
     """
     Default initial condition function for the homogeneous heat equation.
 
-    :args:
+    Args:
         x: Spatial coordinate.
 
-    :returns:
+    Returns:
         Value of the default initial condition at x.
     """
-    return np.sin(2 * x) + 0.5 * np.sin(5 * x)
+    return float(np.sin(2 * x) + 0.5 * np.sin(5 * x))
 
 
 def get_f_hat_true(
@@ -54,12 +57,12 @@ def get_f_hat_true(
     """
     Compute Fourier coefficient for dummy mode j.
 
-    :args:
+    Args:
         j: Mode number (positive integer).
         f_true: Initial condition function. If None, uses default.
         L: Domain length. Defaults to pi.
 
-    :returns:
+    Returns:
         Fourier coefficient f_hat[j].
     """
     if f_true is None:
@@ -76,18 +79,18 @@ def get_f_hat_true(
         result, _ = quad(integrand, 0, L)
         _F_HAT_CACHE[cache_key] = result * 2 / L
 
-    return _F_HAT_CACHE[cache_key]
+    return float(_F_HAT_CACHE[cache_key])
 
 
 def compute_t_vec(n: int, T: float) -> np.ndarray:
     """
     Compute the time vectors for modified factorial sequence t_j.
 
-    :args:
+    Args:
         n: Number of time points.
         T: Time scaling parameter.
 
-    :returns:
+    Returns:
         Array of n time values.
     """
 

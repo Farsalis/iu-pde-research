@@ -13,6 +13,7 @@ from iu_pde_research.core.forcing import (
 from iu_pde_research.core.reconstruction import (
     compute_linear_t_j_homogeneous,
     compute_modified_t_j,
+    compute_modified_t_j_homogeneous_complex,
     compute_modified_t_j_nonhomogeneous,
 )
 from iu_pde_research.core.utils import NUMBA_AVAILABLE
@@ -24,5 +25,6 @@ __all__ = [
     "compute_forcing_contribution_at_time",
     "compute_linear_t_j_homogeneous",
     "compute_modified_t_j",
+    "compute_modified_t_j_homogeneous_complex",
     "compute_modified_t_j_nonhomogeneous",
 ]

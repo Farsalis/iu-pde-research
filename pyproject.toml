@@ -27,6 +27,9 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"iu_pde_research" = ["py.typed"]
+
 [tool.ruff]
 target-version = "py310"
 line-length = 88
@@ -49,6 +52,16 @@ ignore = []
 [tool.ruff.lint.isort]
 known-first-party = ["iu_pde_research"]
 
+[tool.ruff.lint.per-file-ignores]
+# Legacy math naming (T, L, F), long docstrings, and scipy-style lambdas
+"src/**/*.py" = ["N802", "N803", "N806", "E501", "E731", "B023", "S307"]
+# Repo-root CLI: same conventions as src; restricted eval for --T/--x0 expressions
+"nhh_re.py" = ["E501", "N802", "N803", "N806", "S307", "S101"]
+# Pytest uses assert; path hack in conftest; fixture names mirror domain symbols
+"tests/**/*.py" = ["S101", "N802", "N803", "N806", "E501", "E402", "UP038"]
+# subprocess.run of fixed argv for CLI smoke test
+"tests/test_nhh_re.py" = ["S603"]
+
 [tool.mypy]
 python_version = "3.10"
 strict = true
@@ -58,6 +71,14 @@ warn_unused_configs = true
 # Matplotlib and optional deps may lack stubs; relax for visualization
 [[tool.mypy.overrides]]
 module = ["iu_pde_research.visualization.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["scipy.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["numba"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

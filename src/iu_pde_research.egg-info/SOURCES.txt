@@ -7,7 +7,6 @@ src/iu_pde_research.egg-info/dependency_links.txt
 src/iu_pde_research.egg-info/requires.txt
 src/iu_pde_research.egg-info/top_level.txt
 src/iu_pde_research/core/__init__.py
-src/iu_pde_research/core/compute_constants_test.py
 src/iu_pde_research/core/forcing.py
 src/iu_pde_research/core/reconstruction.py
 src/iu_pde_research/core/utils.py
@@ -17,4 +16,5 @@ tests/test_forcing.py
 tests/test_nhh_re.py
 tests/test_plots.py
 tests/test_reconstruction.py
+tests/test_reconstruction_complex.py
 tests/test_utils.py

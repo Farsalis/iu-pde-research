@@ -37,7 +37,7 @@ def compute_F_hat_j(
 
     result, _ = quad(integrand, 0, L)
 
-    return result * 2 / L
+    return float(result * 2 / L)
 
 
 def compute_forcing_contribution_at_time(
@@ -66,26 +66,27 @@ def compute_forcing_contribution_at_time(
 
     # Prevent overflow due to large exponents.
     for j in j_vals:
+        j_mode = int(j)
 
-        def integrand(s):
+        def integrand(s: float) -> float:
             if s < 0 or s > tk:
                 return 0.0
-            F_hat_j = compute_F_hat_j(F, j, s, L)
+            F_hat_j = compute_F_hat_j(F, j_mode, s, L)
 
             if use_pi_formulation:
-                j_sq = j**2  # Simplified form for pi case
+                j_sq = float(j_mode**2)  # Simplified form for pi case
                 exponent = -j_sq * (
                     tk - s
                 )  # Exponents in the j-summations from Green's function
                 if exponent > 700:  # Found through trial and error
                     return 0.0
-                return F_hat_j * np.exp(exponent)
+                return float(F_hat_j * np.exp(exponent))
             else:
-                j_sq = (j * np.pi / L) ** 2  # From gamma during derivation
+                j_sq = (j_mode * np.pi / L) ** 2  # From gamma during derivation
                 exponent = -j_sq * (tk - s)
                 if exponent > 700:
                     return 0.0
-                return F_hat_j * np.exp(exponent)
+                return float(F_hat_j * np.exp(exponent))
 
         try:
             integral_val, _ = quad(
@@ -95,8 +96,10 @@ def compute_forcing_contribution_at_time(
             integral_val = 0.0
 
         if use_pi_formulation:
-            sum_val += integral_val * np.sin(j * x0)  # Outside sine term in summation
+            sum_val += integral_val * np.sin(
+                j_mode * x0
+            )  # Outside sine term in summation
         else:
-            sum_val += integral_val * np.sin(j * np.pi * x0 / L)
+            sum_val += integral_val * np.sin(j_mode * np.pi * x0 / L)
 
-    return sum_val
+    return float(sum_val)
