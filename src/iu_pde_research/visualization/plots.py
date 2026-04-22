@@ -25,12 +25,12 @@ def plot_reconstruction(
     """
     Plot true and reconstructed initial conditions.
 
-    :args:
+    Args:
         x_grid: Grid of x values.
         f_true_vals: True initial condition values.
         bar_f_n_vals: Reconstructed initial condition values.
         title: Plot title. Defaults to "Initial Condition Reconstruction".
-        save_path: Path to save figure. If None, figure is not saved.
+        save_path: Path to save the figure. If None, the figure is not saved.
         show: Whether to display the plot. Defaults to True.
     """
     plt.figure(figsize=(10, 6))
@@ -61,16 +61,16 @@ def plot_reconstruction_with_errors(
     """
     Plot reconstruction with error metrics.
 
-    :args:
+    Args:
         x_grid: Grid of x values.
         f_true_vals: True initial condition values.
         bar_f_n_vals: Reconstructed initial condition values.
         title: Plot title. Defaults to "Initial Condition Reconstruction".
-        save_path: Path to save figure. If None, figure is not saved.
+        save_path: Path to save the figure. If None, the figure is not saved.
         show: Whether to display the plot. Defaults to True.
 
-    :returns:
-        Tuple of (l2_error, linf_error, mse) error metrics.
+    Returns:
+        Tuple of `(l2_error, linf_error, mse)` error metrics.
     """
 
     # Compute error metrics
@@ -233,9 +233,11 @@ def create_interactive_plot() -> None:
         fontsize=10,
     )
 
-    def submit_n(text: str) -> None:
+    def submit_n(text: str | None) -> None:
         """Handle n parameter submission."""
         try:
+            if text is None:
+                raise ValueError("Empty input")
             n = int(float(text))
 
             if n < 1:
@@ -247,9 +249,11 @@ def create_interactive_plot() -> None:
             textbox_n.set_val(str(current_params["n"]))
             fig.canvas.draw_idle()
 
-    def submit_T(text: str) -> None:
+    def submit_T(text: str | None) -> None:
         """Handle T parameter submission."""
         try:
+            if text is None:
+                raise ValueError("Empty input")
             T = float(text)
             if T <= 0:
                 raise ValueError("T must be > 0")

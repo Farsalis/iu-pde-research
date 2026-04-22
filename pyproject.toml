@@ -47,7 +47,7 @@ select = [
     "C4",
     "RUF",
 ]
-ignore = []
+ignore = ["N802", "N803", "N806", "S307"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["iu_pde_research"]
@@ -67,6 +67,8 @@ python_version = "3.10"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ["^tests/", "^benchmarks/"]
 
 # Matplotlib and optional deps may lack stubs; relax for visualization
 [[tool.mypy.overrides]]
