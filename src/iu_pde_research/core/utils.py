@@ -46,7 +46,7 @@ def get_default_f_true(x: float | np.ndarray) -> float | np.ndarray:
     Returns:
         Value of the default initial condition at x.
     """
-    values = np.sin(2 * x) + 0.5 * np.sin(5 * x)
+    values = (1/8)*np.sin(2*x)+(1/27)*np.sin(3*x)+(1/64)*np.sin(4 * x)+(1/125)*np.sin(5*x)+(1/216)*np.sin(6*x)
     if np.ndim(values) == 0:
         return float(values)
     return values

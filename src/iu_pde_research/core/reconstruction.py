@@ -90,7 +90,6 @@ def compute_modified_t_j_homogeneous_complex(
         giving the true initial data and the reconstructed truncated sine series.
     """
     if f_true is None:
-
         def f_true(x: float) -> complex:
             return complex(get_default_f_true(x), 0.0)
 

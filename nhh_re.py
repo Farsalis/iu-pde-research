@@ -114,10 +114,11 @@ def _parse_int_expr(s: str) -> int:
 
 def _default_f_true_nonhomogeneous(x: float | np.ndarray) -> float | np.ndarray:
     """Initial condition used for non-homogeneous demo and batch."""
-    values = (1 / 8) * np.sin(2 * x) + (1 / 18) * np.sin(3 * x)
+    values = (1/8)*np.sin(2*x)+(1/27)*np.sin(3*x)+(1/64)*np.sin(4 * x)+(1/125)*np.sin(5*x)+(1/216)*np.sin(6*x)
     if np.ndim(values) == 0:
         return float(values)
     return values
+
 
 def _default_F(x: float, t: float) -> float:
     """Forcing term used for non-homogeneous demo and batch.
@@ -132,9 +133,10 @@ def _default_F(x: float, t: float) -> float:
 
     return cast(float, jnp.sin(x) * jnp.exp(-t))
 
+
 def _default_f_true_linear(x: float | np.ndarray) -> float | np.ndarray:
     """Initial condition used for linear sequence demo and batch."""
-    values = np.sin(2 * x) + 0.5 * np.sin(5 * x)
+    values = (1/8)*np.sin(2*x)+(1/27)*np.sin(3*x)+(1/64)*np.sin(4 * x)+(1/125)*np.sin(5*x)+(1/216)*np.sin(6*x)
     if np.ndim(values) == 0:
         return float(values)
     return values
@@ -266,7 +268,7 @@ def _batch_filename_stem(algorithm: str, T: float, x0: float, n: int) -> str:
     x0_str = str(round(x0, 4)).replace(".", "_")
     return f"{algorithm}_T{t_str}_x0{x0_str}_n{n}"
 
-
+# TODO: Add main body logic
 def _get_f_true_for_algorithm(
     algorithm: str,
     initial_condition: str,
@@ -315,7 +317,8 @@ def _run_single_reconstruction(
             x_grid,
             f_true_vals,
             bar_f_n_vals,
-            title="Initial Temperature Profile Reconstruction (Modified t_j - Homogeneous)\n",
+            title="Initial Temperature Profile Reconstruction (Modified t_j - Homogeneous)\n"
+                f"n={n}, T={T}, x0={x0:.4f}",
             save_path=str(save_path),
             show=False,
         )
@@ -354,7 +357,7 @@ def _run_single_reconstruction(
                 F=_default_F,
                 f_true=f_true_callable or _default_f_true_nonhomogeneous,
             )
-        plot_reconstruction_with_errors(
+        plot_reconstruction(
             x_grid,
             f_true_vals,
             bar_f_n_vals,
@@ -369,7 +372,7 @@ def _run_single_reconstruction(
         f_true_vals, bar_f_n_vals = compute_modified_t_j_homogeneous_complex(
             n, T, x0, x_grid
         )
-        plot_reconstruction_with_errors(
+        plot_reconstruction(
             x_grid,
             f_true_vals,
             bar_f_n_vals,

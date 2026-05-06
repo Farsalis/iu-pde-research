@@ -49,7 +49,7 @@ def plot_reconstruction(
     if show:
         plt.show()
 
-
+# TODO: Put error metrics on graph
 def plot_reconstruction_with_errors(
     x_grid: np.ndarray,
     f_true_vals: np.ndarray,
