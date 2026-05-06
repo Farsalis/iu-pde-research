@@ -2,50 +2,75 @@
 
 ## Project scope
 
-This repository contains research code for **PDE initial temperature profile reconstruction**: algorithms live in `src/iu_pde_research/core/`, the CLI and demo entry point in `nhh_re.py`, and plotting in `src/iu_pde_research/visualization/`. For installation and usage, see [README.md](../README.md).
+This repository contains research code for PDE initial-temperature profile
+reconstruction. Core algorithms live in `src/iu_pde_research/core/`, the CLI
+entry point is `nhh_re.py`, and plotting/interactive views are in
+`src/iu_pde_research/visualization/`.
+
+For full setup and usage, see [README.md](../README.md).
 
 ## Documentation
 
-All public modules, classes, and functions must have docstrings. Format and
-conventions are defined in the **Python styling guide** (Rule D.1.4): one-line
-summary, optional blank line, then body using Google-style sections
-(`Args:`, `Returns:`, `Raises:`) as applicable. Omit a `Returns` section when
-the return semantics are already obvious from the type hint.
+All public modules, classes, and functions must have docstrings.
 
-- **Location:** `./docs/RULES.md`
+Format and conventions are defined in `docs/RULES.md` (Rule D.1.4):
 
-Please read the relevant sections (formatting, naming, imports, type hints,
-docstrings, testing) before opening a pull request.
+- one-line summary,
+- optional blank line,
+- Google-style sections (`Args:`, `Returns:`, `Raises:`) where applicable.
 
-## Before you open a PR
+For module-level technical notes, see `docs/core/`.
 
-1. **Install pre-commit** (one-time):
-   ```bash
-   pip install pre-commit
-   pre-commit install
-   ```
-
-2. **Run quality checks locally:**
-   - `pre-commit run --all-files` — runs formatter, linter, type checker, and security scanner
-   - `ruff check .` and `ruff format --check .` — lint and format
-   - `mypy .` — type checking
-   - `pytest` — tests (run from repo root after `pip install -e .`)
-
-3. Ensure all of the above pass. The guide’s **“Before You Open a PR”** checklist (in the styling guide) applies.
-
-## Running tests
+## Development setup
 
 From the repository root:
 
 ```bash
-pip install -e .
-pytest
+python -m venv .venv
 ```
 
-Optional: install dev dependencies and run the full toolchain:
+Activate the environment:
+
+- Windows PowerShell:
+
+  ```bash
+  .\.venv\Scripts\Activate.ps1
+  ```
+
+- macOS/Linux:
+
+  ```bash
+  source .venv/bin/activate
+  ```
+
+Then install dependencies:
 
 ```bash
+python -m pip install --upgrade pip
 pip install -e ".[dev]"
-pre-commit run --all-files
-pytest
+pre-commit install
 ```
+
+## Before you open a PR
+
+1. Run the full local checks:
+
+   ```bash
+   pre-commit run --all-files
+   pytest
+   ```
+
+2. If needed, run checks manually (same tools used by hooks):
+   - `ruff check .`
+   - `ruff format --check .`
+   - `mypy src nhh_re.py`
+   - `pytest`
+
+3. Review the checklist in `docs/RULES.md` under **"Before You Open a PR"**
+   and ensure each item is satisfied.
+
+## Notes on optional backends
+
+- CuPy-based tests are skipped automatically if `cupy` is not installed
+  (`pytest.importorskip` in `tests/test_reconstruction_cupy.py`).
+- JAX tests require JAX to import successfully in your environment.

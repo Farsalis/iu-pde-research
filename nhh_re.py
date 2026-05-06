@@ -119,10 +119,6 @@ def _default_f_true_nonhomogeneous(x: float | np.ndarray) -> float | np.ndarray:
         return float(values)
     return values
 
-
-#############################################################################
-
-
 def _default_F(x: float, t: float) -> float:
     """Forcing term used for non-homogeneous demo and batch.
 
@@ -135,10 +131,6 @@ def _default_F(x: float, t: float) -> float:
     import jax.numpy as jnp
 
     return cast(float, jnp.sin(x) * jnp.exp(-t))
-
-
-############################################################################
-
 
 def _default_f_true_linear(x: float | np.ndarray) -> float | np.ndarray:
     """Initial condition used for linear sequence demo and batch."""
@@ -654,8 +646,6 @@ def main() -> None:
         )
     else:
         modified_t_j()
-    print("\nRunning Linear sequence method...")
-    linear_sequence()
     print("\nDone!")
     print("\nTo run interactive mode, use: python nhh_re.py --interactive")
     print(
