@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 src/iu_pde_research/__init__.py
+src/iu_pde_research/py.typed
 src/iu_pde_research.egg-info/PKG-INFO
 src/iu_pde_research.egg-info/SOURCES.txt
 src/iu_pde_research.egg-info/dependency_links.txt
@@ -10,7 +11,6 @@ src/iu_pde_research/core/__init__.py
 src/iu_pde_research/core/forcing.py
 src/iu_pde_research/core/forcing_autodiff.py
 src/iu_pde_research/core/forcing_cupy.py
-src/iu_pde_research/core/reconstruction.py
 src/iu_pde_research/core/reconstruction_cupy.py
 src/iu_pde_research/core/reconstruction_jax.py
 src/iu_pde_research/core/utils.py
