@@ -49,7 +49,7 @@ def plot_reconstruction(
     if show:
         plt.show()
 
-# TODO: Put error metrics on graph
+
 def plot_reconstruction_with_errors(
     x_grid: np.ndarray,
     f_true_vals: np.ndarray,
@@ -143,7 +143,6 @@ def create_interactive_plot() -> None:
         "x0_str": x0_init_str,
     }
 
-    # TODO: Make this asynchronous
     def update_plot(n: int, T: float, x0: float) -> None:
         """Update plot with new parameters."""
         ax.set_title(
@@ -285,7 +284,7 @@ def create_interactive_plot() -> None:
                 "np": np,
             }
 
-            x0 = float(eval(text, safe_dict))
+            x0 = float(eval(text, safe_dict))  # nosec B307 - restricted math parser
 
             if x0 <= 0 or x0 >= np.pi:
                 raise ValueError(f"x0 must be in (0, pi) = (0, {np.pi:.3f})")

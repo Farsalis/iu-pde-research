@@ -6,6 +6,10 @@ Covers plot_reconstruction (save/show) and plot_reconstruction_with_errors
 
 from pathlib import Path
 
+import matplotlib
+
+matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest

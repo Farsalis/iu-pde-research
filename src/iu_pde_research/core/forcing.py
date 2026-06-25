@@ -1,7 +1,7 @@
 """Forcing term computations for non-homogeneous PDE.
 
 Computes the Fourier coefficient of the forcing term F(x, t) for a given mode,
-Holthe contribution of the forcing term to the solution at a given time, and the
+the contribution of the forcing term to the solution at a given time, and the
 truncation index n_k for the forcing series (non-homogeneous heat equation with
 Dirichlet boundary conditions).
 """
@@ -12,6 +12,14 @@ from collections.abc import Callable
 import numpy as np
 from numpy.polynomial import legendre
 from scipy.integrate import quad
+
+from iu_pde_research.core.basis import (
+    BoundaryCondition,
+    coefficient_scale,
+    eigenvalue,
+    mode_value,
+    validate_boundary_condition,
+)
 
 # Fixed order for inner x-integral (Fourier mode integrand); avoids adaptive cost.
 _F_HAT_J_QUAD_ORDER = 32
@@ -129,6 +137,7 @@ def compute_F_hat_j(
     j: int,
     t: float,
     L: float = np.pi,
+    bc: BoundaryCondition = "dirichlet",
 ) -> float:
     """
     Compute Fourier coefficient of forcing term F(x, t) for mode j.
@@ -137,24 +146,39 @@ def compute_F_hat_j(
 
     Args:
         F: Forcing function F(x, t).
-        j: Mode number (positive integer).
+        j: Mode number. Dirichlet uses j >= 1; Neumann also supports j = 0.
         t: Time value.
         L: Domain length. Defaults to pi.
+        bc: Boundary condition basis, either "dirichlet" or "neumann".
 
     Returns:
         Fourier coefficient F_hat[j] at time t.
     """
-    if abs(L - np.pi) < 1e-10:
+    bc = validate_boundary_condition(bc)
+    scale = coefficient_scale(j, L, bc)
 
-        def integrand(x: float) -> float:
-            return float(F(x, t) * np.sin(j * x))
-    else:
-
-        def integrand(x: float) -> float:
-            return float(F(x, t) * np.sin(j * np.pi * x / L))
+    def integrand(x: float) -> float:
+        return float(F(x, t) * float(mode_value(j, x, L, bc)))
 
     result = _fixed_quad_x(integrand, 0.0, float(L), _F_HAT_J_QUAD_ORDER)
-    return float(float(result * 2.0 / L))
+    return float(result * scale)
+
+
+def compute_forcing_zero_mode_at_time(
+    F: Callable[[float, float], float],
+    tk: float,
+    L: float = np.pi,
+) -> float:
+    """Compute the Neumann zero-mode forcing contribution ``G_0(tk)``."""
+    if tk <= 0:
+        return 0.0
+
+    s_grid = np.linspace(0.0, float(tk), _FORCING_S_GRID_SIZE)
+    F_hat_0 = np.array(
+        [compute_F_hat_j(F, 0, float(s), L, bc="neumann") for s in s_grid],
+        dtype=np.float64,
+    )
+    return float(np.trapezoid(F_hat_0, s_grid))
 
 
 def compute_forcing_contribution_at_time(
@@ -163,6 +187,7 @@ def compute_forcing_contribution_at_time(
     x0: float,
     n_terms: int = 50,
     L: float = np.pi,
+    bc: BoundaryCondition = "dirichlet",
 ) -> float:
     """
     Compute forcing term contribution to solution at time tk.
@@ -181,6 +206,8 @@ def compute_forcing_contribution_at_time(
         x0: Spatial measurement point.
         n_terms: Number of Fourier modes (n_k, possibly capped). Defaults to 50.
         L: Domain length. Defaults to pi.
+        bc: Boundary condition basis. Neumann sums nonzero modes j >= 1 only;
+            use compute_forcing_zero_mode_at_time for the j=0 contribution.
 
     Returns:
         Contribution of forcing term to u(x0, tk).
@@ -188,7 +215,7 @@ def compute_forcing_contribution_at_time(
     if tk <= 0 or n_terms < 1:
         return 0.0
 
-    use_pi_formulation = abs(L - np.pi) < 1e-10
+    bc = validate_boundary_condition(bc)
 
     # --- Adaptive cutoff ------------------------------------------------
     n_cutoff = compute_exp_decay_cutoff(tk, L)
@@ -203,28 +230,20 @@ def compute_forcing_contribution_at_time(
         F_hat_grid = np.zeros((n_full, n_s))
         for j in range(1, n_full + 1):
             for i_s, s in enumerate(s_grid):
-                F_hat_grid[j - 1, i_s] = compute_F_hat_j(F, j, float(s), L)
+                F_hat_grid[j - 1, i_s] = compute_F_hat_j(F, j, float(s), L, bc)
 
         for j in range(1, n_full + 1):
-            j_sq: float = float(j**2) if use_pi_formulation else (j * np.pi / L) ** 2
-            exponent = -j_sq * (tk - s_grid)
+            lambda_j = eigenvalue(j, L, bc)
+            exponent = -lambda_j * (tk - s_grid)
             exponent = np.clip(exponent, None, 700.0)
             vals = F_hat_grid[j - 1, :] * np.exp(exponent)
             integral_j = float(np.trapezoid(vals, s_grid))
-            if use_pi_formulation:
-                sum_val += integral_j * np.sin(j * x0)
-            else:
-                sum_val += integral_j * np.sin(j * np.pi * x0 / L)
+            sum_val += integral_j * float(mode_value(j, x0, L, bc))
 
     # --- Strategy 2: asymptotic approx for high-frequency modes ----------
     for j in range(n_full + 1, n_terms + 1):
-        f_hat_j_tk = compute_F_hat_j(F, j, float(tk), L)
-        if use_pi_formulation:
-            lambda_j = float(j**2)
-            sin_j_x0 = float(np.sin(j * x0))
-        else:
-            lambda_j = float((j * np.pi / L) ** 2)
-            sin_j_x0 = float(np.sin(j * np.pi * x0 / L))
-        sum_val += (f_hat_j_tk / lambda_j) * sin_j_x0
+        f_hat_j_tk = compute_F_hat_j(F, j, float(tk), L, bc)
+        lambda_j = eigenvalue(j, L, bc)
+        sum_val += (f_hat_j_tk / lambda_j) * float(mode_value(j, x0, L, bc))
 
     return float(sum_val)

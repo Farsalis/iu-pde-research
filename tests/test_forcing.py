@@ -15,6 +15,7 @@ from iu_pde_research.core.forcing import (
     compute_F_hat_j,
     compute_forcing_contribution_at_time,
     compute_forcing_truncation_constant_C,
+    compute_forcing_zero_mode_at_time,
     compute_n_k,
 )
 from iu_pde_research.core.forcing_autodiff import make_F_x_from_F
@@ -51,6 +52,36 @@ def test_compute_F_hat_j_sin_x_mode1_positive() -> None:
     assert result > 0
 
 
+def test_compute_F_hat_j_neumann_cos_x_mode1() -> None:
+    """Neumann projection uses cosine modes for nonzero forcing coefficients."""
+
+    def F_cos_x(x: float, t: float) -> float:
+        return float(np.cos(x))
+
+    result = compute_F_hat_j(F_cos_x, 1, 0.0, bc="neumann")
+    assert result == pytest.approx(1.0)
+
+
+def test_compute_F_hat_j_neumann_constant_zero_mode() -> None:
+    """Neumann j=0 coefficient is the spatial mean of the forcing."""
+
+    def F_constant(x: float, t: float) -> float:
+        return 2.5
+
+    result = compute_F_hat_j(F_constant, 0, 0.0, bc="neumann")
+    assert result == pytest.approx(2.5)
+
+
+def test_compute_forcing_zero_mode_at_time_constant_forcing() -> None:
+    """The Neumann zero-mode forcing contribution integrates F_hat_0 over time."""
+
+    def F_constant(x: float, t: float) -> float:
+        return 2.0
+
+    result = compute_forcing_zero_mode_at_time(F_constant, tk=0.75)
+    assert result == pytest.approx(1.5)
+
+
 def test_compute_forcing_contribution_at_time_zero_F() -> None:
     """compute_forcing_contribution_at_time returns 0 when F is zero."""
 
@@ -73,6 +104,21 @@ def test_compute_forcing_contribution_at_time_simple_F_finite() -> None:
         F_simple, tk=0.2, x0=np.pi / 2, n_terms=5
     )
     assert np.isfinite(result)
+
+
+def test_compute_forcing_contribution_at_time_neumann_cos_forcing() -> None:
+    """Neumann nonzero forcing contribution uses the cosine sensor factor."""
+
+    def F_cos_exp(x: float, t: float) -> float:
+        return float(np.cos(x) * np.exp(-t))
+
+    tk = 0.2
+    x0 = 0.3
+    result = compute_forcing_contribution_at_time(
+        F_cos_exp, tk=tk, x0=x0, n_terms=1, bc="neumann"
+    )
+    expected = np.cos(x0) * np.exp(-tk) * tk
+    assert result == pytest.approx(expected, rel=1e-3)
 
 
 def test_compute_n_k_returns_ceil_integer() -> None:

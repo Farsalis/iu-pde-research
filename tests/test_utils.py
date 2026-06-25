@@ -25,10 +25,11 @@ def test_get_default_f_true_scalar_in_scalar_out() -> None:
 
 
 def test_get_default_f_true_known_value() -> None:
-    """get_default_f_true at x=pi/2 is sin(2*pi/2)+0.5*sin(5*pi/2) = 0 + 0.5 = 0.5."""
+    """get_default_f_true at x=pi/2 matches the current sine-series default."""
     x = np.pi / 2
     result = get_default_f_true(x)
-    assert result == pytest.approx(0.5)
+    expected = -1.0 / 27.0 + 1.0 / 125.0
+    assert result == pytest.approx(expected)
 
 
 @pytest.mark.parametrize("j", [1, 2, 3])

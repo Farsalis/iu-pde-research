@@ -68,7 +68,7 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
-exclude = ["^tests/", "^benchmarks/"]
+exclude = ["^tests/", "^benchmarks/", "^venv/", "^\\.venv/"]
 
 # Matplotlib and optional deps may lack stubs; relax for visualization
 [[tool.mypy.overrides]]

@@ -15,6 +15,7 @@ from iu_pde_research.core.forcing import (
     compute_F_hat_j,
     compute_forcing_contribution_at_time,
     compute_forcing_truncation_constant_C,
+    compute_forcing_zero_mode_at_time,
     compute_n_k,
 )
 from iu_pde_research.core.forcing_autodiff import make_F_x_from_F
@@ -27,6 +28,7 @@ from iu_pde_research.core.reconstruction import (
 from iu_pde_research.core.utils import (
     INITIAL_CONDITION_OPTIONS,
     NUMBA_AVAILABLE,
+    InitialCondition,
     get_default_f_true,
     get_f_true_sine_series_5,
     get_f_true_sine_series_10,
@@ -42,7 +44,7 @@ except ImportError:
         T: float,
         x0: float,
         x_grid: np.ndarray,
-        f_true: Callable[[float | np.ndarray], float | np.ndarray] | None = None,
+        f_true: InitialCondition | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Fallback when JAX backend is unavailable."""
         msg = "JAX backend is unavailable. Install JAX to use compute_modified_t_j_jax."
@@ -62,7 +64,7 @@ except ImportError:
         x_grid: np.ndarray,
         F: Callable[[float, float], float] | None = None,
         F_x: Callable[[float, float], float] | None = None,
-        f_true: Callable[[float], float] | None = None,
+        f_true: InitialCondition | None = None,
         L: float = np.pi,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Fallback when CuPy backend is unavailable."""
@@ -78,6 +80,7 @@ __all__ = [
     "compute_exp_decay_cutoff",
     "compute_forcing_contribution_at_time",
     "compute_forcing_truncation_constant_C",
+    "compute_forcing_zero_mode_at_time",
     "compute_linear_t_j_homogeneous",
     "compute_modified_t_j",
     "compute_modified_t_j_homogeneous_complex",

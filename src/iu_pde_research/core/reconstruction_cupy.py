@@ -11,6 +11,7 @@ as possible so callers can switch between CPU and GPU backends.
 """
 
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 
@@ -22,7 +23,11 @@ from iu_pde_research.core.forcing_cupy import (
     default_F_x_cupy,
 )
 from iu_pde_research.core.reconstruction import MAX_FORCING_MODES
-from iu_pde_research.core.utils import compute_t_vec, get_default_f_true
+from iu_pde_research.core.utils import (
+    InitialCondition,
+    compute_t_vec,
+    get_default_f_true,
+)
 
 try:
     import cupy as cp
@@ -39,7 +44,7 @@ def _compute_homogeneous_gpu(
     T: float,
     x0: float,
     x_grid: np.ndarray,
-    f_true: Callable[[float], float] | None = None,
+    f_true: InitialCondition | None = None,
     L: float = np.pi,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Shared homogeneous part for GPU path: returns (t_vec, u_homogeneous_cp, j_vals, k_vals)."""
@@ -50,6 +55,8 @@ def _compute_homogeneous_gpu(
 
     n_terms = 50
     j_vals = np.arange(1, n_terms + 1)
+
+    j_squared: np.ndarray[tuple[Any, ...], np.dtype[np.float64]]
 
     if abs(L - np.pi) < 1e-10:
         f_hat_vals = np.array(
@@ -64,7 +71,7 @@ def _compute_homogeneous_gpu(
                 for j in j_vals
             ]
         )
-        j_squared = j_vals**2
+        j_squared = (j_vals**2).astype(np.float64)
         sin_j_x0 = np.sin(j_vals * x0)
     else:
         f_hat_vals = np.array(
@@ -79,7 +86,7 @@ def _compute_homogeneous_gpu(
                 for j in j_vals
             ]
         )
-        j_squared = (j_vals * np.pi / L) ** 2
+        j_squared = ((j_vals * np.pi / L) ** 2).astype(np.float64)
         sin_j_x0 = np.sin(j_vals * np.pi * x0 / L)
 
     t_vec_cp = cp.asarray(t_vec)
@@ -100,7 +107,7 @@ def compute_modified_t_j_nonhomogeneous_gpu(
     x_grid: np.ndarray,
     F_gpu: Callable[[cp.ndarray, cp.ndarray], cp.ndarray],
     F_x_gpu: Callable[[cp.ndarray, cp.ndarray], cp.ndarray],
-    f_true: Callable[[float], float] | None = None,
+    f_true: InitialCondition | None = None,
     L: float = np.pi,
 ) -> tuple[np.ndarray, np.ndarray]:
     """General CuPy-accelerated non-homogeneous modified t_j reconstruction."""
@@ -203,7 +210,7 @@ def compute_modified_t_j_nonhomogeneous_cupy(
     x_grid: np.ndarray,
     F: Callable[[float, float], float] | None = None,
     F_x: Callable[[float, float], float] | None = None,
-    f_true: Callable[[float], float] | None = None,
+    f_true: InitialCondition | None = None,
     L: float = np.pi,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Backward-compatible entry point for CuPy implementation.

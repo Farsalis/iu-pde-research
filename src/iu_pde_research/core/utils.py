@@ -7,10 +7,18 @@ faster time-vector computation.
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.integrate import quad
+
+from iu_pde_research.core.basis import (
+    BoundaryCondition,
+    coefficient_scale,
+    mode_value,
+    validate_boundary_condition,
+)
 
 # Allows us to compile factorials just in time.
 try:
@@ -32,11 +40,15 @@ except ImportError:
 
     prange = range
 
+InitialCondition: TypeAlias = Callable[
+    [float | NDArray[np.float64]], float | NDArray[np.float64]
+]
+
 # Cache for Fourier coefficients
-_F_HAT_CACHE = {}
+_F_HAT_CACHE: dict[tuple[int, float, BoundaryCondition, int], float] = {}
 
 
-def get_default_f_true(x: float | np.ndarray) -> float | np.ndarray:
+def get_default_f_true(x: float | NDArray[np.float64]) -> float | NDArray[np.float64]:
     """
     Default initial condition function for the homogeneous heat equation.
 
@@ -46,13 +58,21 @@ def get_default_f_true(x: float | np.ndarray) -> float | np.ndarray:
     Returns:
         Value of the default initial condition at x.
     """
-    values = (1/8)*np.sin(2*x)+(1/27)*np.sin(3*x)+(1/64)*np.sin(4 * x)+(1/125)*np.sin(5*x)+(1/216)*np.sin(6*x)
+    values = (
+        (1 / 8) * np.sin(2 * x)
+        + (1 / 27) * np.sin(3 * x)
+        + (1 / 64) * np.sin(4 * x)
+        + (1 / 125) * np.sin(5 * x)
+        + (1 / 216) * np.sin(6 * x)
+    )
     if np.ndim(values) == 0:
         return float(values)
     return values
 
 
-def _f_true_sine_series_n(x: float | np.ndarray, n: int) -> float | np.ndarray:
+def _f_true_sine_series_n(
+    x: float | NDArray[np.float64], n: int
+) -> float | NDArray[np.float64]:
     """Initial condition f(x) = sum_{j=1}^{n} a_j*sin(j*x) with a_1=0 and a_j=1/(2*j^2) for j>=2."""
     out_orig_ic = np.zeros_like(x, dtype=np.float64) if np.ndim(x) != 0 else 0.0
     for j in range(1, int(n) + 1):
@@ -66,28 +86,37 @@ def _f_true_sine_series_n(x: float | np.ndarray, n: int) -> float | np.ndarray:
     return out_orig_ic
 
 
-def get_f_true_sine_series_5(x: float | np.ndarray) -> float | np.ndarray:
+def get_f_true_sine_series_5(
+    x: float | NDArray[np.float64],
+) -> float | NDArray[np.float64]:
     """
     Initial condition f(x) = sum_{j=1}^{5} a_j*sin(j*x) with f_hat_1=0 and a_j=1/(2*j^2) for j>=2.
     """
     return _f_true_sine_series_n(x, 5)
 
 
-def get_f_true_sine_series_10(x: float | np.ndarray) -> float | np.ndarray:
+def get_f_true_sine_series_10(
+    x: float | NDArray[np.float64],
+) -> float | NDArray[np.float64]:
     """
     Initial condition f(x) = sum_{j=1}^{10} a_j*sin(j*x) with f_hat_1=0 and a_j=1/(2*j^2) for j>=2.
     """
     return _f_true_sine_series_n(x, 10)
 
 
-def get_f_true_sine_series_15(x: float | np.ndarray) -> float | np.ndarray:
+def get_f_true_sine_series_15(
+    x: float | NDArray[np.float64],
+) -> float | NDArray[np.float64]:
     """
     Initial condition f(x) = sum_{j=1}^{15} a_j*sin(j*x) with f_hat_1=0 and a_j=1/(2*j^2) for j>=2.
     """
     return _f_true_sine_series_n(x, 15)
 
 
-def _f_true_sine_series_n_cubed(x: float | np.ndarray, n: int) -> float | np.ndarray:
+def _f_true_sine_series_n_cubed(
+    x: float | NDArray[np.float64], n: int
+) -> float | NDArray[np.float64]:
+    """Initial condition f(x) = sum_{j=2}^{n} (1/j^3) * sin(j*x) (with a_1 = 0)."""
     out_new_ic = np.zeros_like(x, dtype=np.float64) if np.ndim(x) != 0 else 0.0
     for j in range(1, int(n) + 1):
         coeff = 0.0 if j == 1 else 1.0 / (j * j * j)
@@ -99,31 +128,29 @@ def _f_true_sine_series_n_cubed(x: float | np.ndarray, n: int) -> float | np.nda
     return out_new_ic
 
 
-def get_f_true_new_sine_series_5(x: float | np.ndarray) -> float | np.ndarray:
-    """
-    Initial condition f(x) = sum_{j=1}^{15} a_j*sin(j*x) with f_hat_1=0 and a_j=1/(2*j^2) for j>=2.
-    """
+def get_f_true_new_sine_series_5(
+    x: float | NDArray[np.float64],
+) -> float | NDArray[np.float64]:
+    """Initial condition f(x) = sum_{j=1}^{5} a_j*sin(j*x) with a_1=0 and a_j=1/j^3 for j>=2."""
     return _f_true_sine_series_n_cubed(x, 5)
 
 
-def get_f_true_new_sine_series_10(x: float | np.ndarray) -> float | np.ndarray:
-    """
-    Initial condition f(x) = sum_{j=1}^{15} a_j*sin(j*x) with f_hat_1=0 and a_j=1/(2*j^2) for j>=2.
-    """
+def get_f_true_new_sine_series_10(
+    x: float | NDArray[np.float64],
+) -> float | NDArray[np.float64]:
+    """Initial condition f(x) = sum_{j=1}^{10} a_j*sin(j*x) with a_1=0 and a_j=1/j^3 for j>=2."""
     return _f_true_sine_series_n_cubed(x, 10)
 
 
-def get_f_true_new_sine_series_15(x: float | np.ndarray) -> float | np.ndarray:
-    """
-    Initial condition f(x) = sum_{j=1}^{15} a_j*sin(j*x) with f_hat_1=0 and a_j=1/(2*j^2) for j>=2.
-    """
+def get_f_true_new_sine_series_15(
+    x: float | NDArray[np.float64],
+) -> float | NDArray[np.float64]:
+    """Initial condition f(x) = sum_{j=1}^{15} a_j*sin(j*x) with a_1=0 and a_j=1/j^3 for j>=2."""
     return _f_true_sine_series_n_cubed(x, 15)
 
 
 # Named initial condition options for the patterns (1/(2*j^2))*sin(j*x) and (1/(j^3))*sin(j*x) .
-INITIAL_CONDITION_OPTIONS: dict[
-    str, Callable[[float | np.ndarray], float | np.ndarray]
-] = {
+INITIAL_CONDITION_OPTIONS: dict[str, InitialCondition] = {
     "default": get_default_f_true,
     "sine_series_5": get_f_true_sine_series_5,
     "sine_series_10": get_f_true_sine_series_10,
@@ -136,17 +163,19 @@ INITIAL_CONDITION_OPTIONS: dict[
 
 def get_f_hat_true(
     j: int,
-    f_true: Callable[[float], float] | None = None,
+    f_true: InitialCondition | None = None,
     L: float = np.pi,
+    bc: BoundaryCondition = "dirichlet",
 ) -> float:
     """
-    Compute Fourier coefficient for dummy mode j.
+    Compute a Fourier coefficient for the selected heat-equation basis.
 
     Args:
-        j: Mode number (positive integer).
+        j: Mode number. Dirichlet uses j >= 1; Neumann also supports j = 0.
         f_true: Initial condition function. If None, uses the default initial
             condition.
         L: Domain length. Defaults to pi.
+        bc: Boundary condition basis, either "dirichlet" or "neumann".
 
     Returns:
         Fourier coefficient f_hat[j].
@@ -154,20 +183,17 @@ def get_f_hat_true(
     if f_true is None:
         f_true = get_default_f_true
 
-    cache_key = (j, L)
+    bc = validate_boundary_condition(bc)
+    cache_key = (j, float(L), bc, id(f_true))
 
     if cache_key not in _F_HAT_CACHE:
-        if abs(L - np.pi) < 1e-10:  # Equal to pi
+        scale = coefficient_scale(j, L, bc)
 
-            def integrand(x: float) -> float:
-                return float(f_true(x) * np.sin(j * x))
-        else:
-
-            def integrand(x: float) -> float:
-                return float(f_true(x) * np.sin(j * np.pi * x / L))
+        def integrand(x: float) -> float:
+            return float(f_true(x) * float(mode_value(j, x, L, bc)))
 
         result, _ = quad(integrand, 0, L)
-        _F_HAT_CACHE[cache_key] = result * 2 / L
+        _F_HAT_CACHE[cache_key] = result * scale
 
     return float(_F_HAT_CACHE[cache_key])
 

@@ -12,13 +12,23 @@ from collections.abc import Callable
 import numpy as np
 from scipy.integrate import quad
 
+from iu_pde_research.core.basis import (
+    BoundaryCondition,
+    ZeroModeMethod,
+    eigenvalue,
+    mode_value,
+    validate_boundary_condition,
+    validate_zero_mode_method,
+)
 from iu_pde_research.core.forcing import (
     compute_forcing_contribution_at_time,
     compute_forcing_truncation_constant_C,
+    compute_forcing_zero_mode_at_time,
     compute_n_k,
 )
 from iu_pde_research.core.forcing_autodiff import make_F_x_from_F
 from iu_pde_research.core.utils import (
+    InitialCondition,
     compute_t_vec,
     get_default_f_true,
     get_f_hat_true,
@@ -28,6 +38,54 @@ from iu_pde_research.core.utils import (
 # Set to an integer (e.g. 200) to limit the number of forcing modes;
 # leave as None to use the theoretical n_k from the paper without capping.
 MAX_FORCING_MODES: int | None = None
+
+
+def _mode_values(
+    indices: np.ndarray,
+    x: float | np.ndarray,
+    L: float,
+    bc: BoundaryCondition,
+) -> np.ndarray:
+    """Evaluate a sequence of basis functions at one point or grid."""
+    return np.asarray(
+        [mode_value(int(j), x, L, bc) for j in indices],
+        dtype=np.float64,
+    )
+
+
+def _neumann_f_hat_0(
+    f_true: InitialCondition,
+    L: float,
+    f_hat_0: float | None,
+) -> float:
+    """Return the supplied or quadrature-computed Neumann mean coefficient."""
+    if f_hat_0 is not None:
+        return float(f_hat_0)
+    return get_f_hat_true(0, f_true, L, bc="neumann")
+
+
+def _validate_zero_mode_options(
+    zero_mode: str,
+    bc: BoundaryCondition,
+    f_hat_0: float | None,
+) -> ZeroModeMethod:
+    """Validate Neumann zero-mode options against boundary condition and inputs."""
+    zero_mode = validate_zero_mode_method(zero_mode)
+    if zero_mode == "measurement":
+        if bc != "neumann":
+            msg = "zero_mode='measurement' requires bc='neumann'."
+            raise ValueError(msg)
+        if f_hat_0 is not None:
+            msg = "zero_mode='measurement' is incompatible with a supplied f_hat_0."
+            raise ValueError(msg)
+    return zero_mode
+
+
+def _neumann_k_vals(max_k: int, zero_mode: ZeroModeMethod) -> np.ndarray:
+    """Return reconstruction mode indices for the selected Neumann zero-mode path."""
+    if zero_mode == "measurement":
+        return np.arange(0, max_k)
+    return np.arange(1, max_k + 1)
 
 
 def _f_hat_j_complex(
@@ -90,6 +148,7 @@ def compute_modified_t_j_homogeneous_complex(
         giving the true initial data and the reconstructed truncated sine series.
     """
     if f_true is None:
+
         def f_true(x: float) -> complex:
             return complex(get_default_f_true(x), 0.0)
 
@@ -158,7 +217,12 @@ def compute_modified_t_j(
     T: float,
     x0: float,
     x_grid: np.ndarray,
-    f_true: Callable[[float], float] | None = None,
+    f_true: InitialCondition | None = None,
+    L: float = np.pi,
+    *,
+    bc: BoundaryCondition = "dirichlet",
+    f_hat_0: float | None = None,
+    zero_mode: ZeroModeMethod = "known",
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Reconstruct initial condition using the modified t_j method (homogeneous).
@@ -172,52 +236,83 @@ def compute_modified_t_j(
         x_grid: Grid of x values for reconstruction.
         f_true: True initial condition function. If None, uses the default
             initial condition.
+        L: Domain length. Defaults to pi.
+        bc: Boundary condition basis, either "dirichlet" or "neumann".
+        f_hat_0: Known Neumann mean coefficient. If None, it is computed from
+            f_true when bc="neumann" and zero_mode="known".
+        zero_mode: Neumann zero-mode handling. ``"known"`` (default) treats
+            the mean as supplied or quadrature-computed and reconstructs modes
+            1..M. ``"measurement"`` estimates the mean from the first sensor
+            reading at t_1 = T and reconstructs modes 0..M-1.
 
     Returns:
         Tuple of `(f_true_vals, bar_f_n_vals)` where `f_true_vals` is the true
         initial condition on `x_grid` and `bar_f_n_vals` is the reconstructed
         initial condition on `x_grid`.
+
+    Raises:
+        ValueError: If zero_mode is unsupported, if zero_mode="measurement" is
+            used with bc other than "neumann", or if zero_mode="measurement" is
+            combined with a supplied f_hat_0.
     """
     if f_true is None:
         f_true = get_default_f_true
+
+    bc = validate_boundary_condition(bc)
+    zero_mode = _validate_zero_mode_options(zero_mode, bc, f_hat_0)
 
     t_vec = compute_t_vec(n, T)  # Compute t_k as a vector and then optimize
 
     n_terms = 20  # Number of measurements from sensor
     j_vals = np.arange(1, n_terms + 1)
     f_hat_vals = np.array(
-        [get_f_hat_true(int(j), f_true) for j in j_vals]
+        [get_f_hat_true(int(j), f_true, L, bc) for j in j_vals],
+        dtype=np.float64,
     )  # Generating j true Fourier coefficients
-    j_squared = j_vals**2
-    sin_j_x0 = np.sin(j_vals * x0)
+    j_squared = np.asarray([eigenvalue(int(j), L, bc) for j in j_vals])
+    sensor_j_x0 = _mode_values(j_vals, x0, L, bc)
     exp_matrix = np.exp(
         -np.outer(t_vec, j_squared)
     )  # Computing dot product since these are arrays
-    u_data = np.sum(exp_matrix * f_hat_vals * sin_j_x0, axis=1)
+    u_data = np.sum(exp_matrix * f_hat_vals * sensor_j_x0, axis=1)
+
+    mean_coeff = 0.0
+    use_measurement_zero_mode = bc == "neumann" and zero_mode == "measurement"
+    if bc == "neumann":
+        if use_measurement_zero_mode:
+            u_data = u_data + _neumann_f_hat_0(f_true, L, None)
+        else:
+            mean_coeff = _neumann_f_hat_0(f_true, L, f_hat_0)
 
     bar_f_hat = np.zeros(int(np.ceil(n / 2)))
-    sin_k_x0 = np.sin(np.arange(1, len(bar_f_hat) + 1) * x0)
     max_k = len(bar_f_hat)
-    j_squared_cache = np.arange(1, max_k + 1) ** 2
+    if use_measurement_zero_mode:
+        k_vals = _neumann_k_vals(max_k, zero_mode)
+    else:
+        k_vals = np.arange(1, max_k + 1)
+    sensor_k_x0 = _mode_values(k_vals, x0, L, bc)
+    j_squared_cache = np.asarray([eigenvalue(int(j), L, bc) for j in k_vals])
 
-    for k in range(1, max_k + 1):  # Amount of terms we reconstruct based on bar_f_hat
+    for k in range(1, max_k + 1):
         tk = t_vec[k - 1]
         if k == 1:
-            bar_f_hat[0] = np.exp(tk) * u_data[0] / sin_k_x0[0]
+            bar_f_hat[0] = np.exp(j_squared_cache[0] * tk) * u_data[0] / sensor_k_x0[0]
         else:
             j_indices = np.arange(1, k)
             exp_terms = np.exp(-j_squared_cache[j_indices - 1] * tk)
             sum_prev = np.sum(
-                exp_terms * bar_f_hat[j_indices - 1] * sin_j_x0[j_indices - 1]
+                exp_terms * bar_f_hat[j_indices - 1] * sensor_k_x0[j_indices - 1]
             )
             k_squared_tk = j_squared_cache[k - 1] * tk
             bar_f_hat[k - 1] = (
-                np.exp(k_squared_tk) * (u_data[k - 1] - sum_prev) / sin_k_x0[k - 1]
+                np.exp(k_squared_tk) * (u_data[k - 1] - sum_prev) / sensor_k_x0[k - 1]
             )
 
-    k_vals = np.arange(1, len(bar_f_hat) + 1)
-    sin_matrix = np.sin(np.outer(x_grid, k_vals))
-    bar_f_n_vals = sin_matrix @ bar_f_hat
+    basis_matrix = _mode_values(k_vals, x_grid, L, bc).T
+    bar_f_n_vals = basis_matrix @ bar_f_hat
+    if bc == "neumann" and not use_measurement_zero_mode:
+        bar_f_n_vals = mean_coeff + bar_f_n_vals
+
     f_true_vals = np.asarray(
         [float(f_true(float(x))) for x in x_grid], dtype=np.float64
     )
@@ -232,10 +327,13 @@ def compute_modified_t_j_nonhomogeneous(
     x_grid: np.ndarray,
     F: Callable[[float, float], float] | None = None,
     F_x: Callable[[float, float], float] | None = None,
-    f_true: Callable[[float], float] | None = None,
+    f_true: InitialCondition | None = None,
     L: float = np.pi,
     *,
     backend: str = "cpu",
+    bc: BoundaryCondition = "dirichlet",
+    f_hat_0: float | None = None,
+    zero_mode: ZeroModeMethod = "known",
     F_gpu: Callable[..., object] | None = None,
     F_x_gpu: Callable[..., object] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -257,19 +355,41 @@ def compute_modified_t_j_nonhomogeneous(
         f_true: True initial condition function. If None, uses the default
             initial condition.
         L: Domain length. Defaults to pi.
+        backend: Execution backend, either "cpu" or "gpu".
+        bc: Boundary condition basis, either "dirichlet" or "neumann".
+        f_hat_0: Known Neumann mean coefficient. If None, it is computed from
+            f_true when bc="neumann" and zero_mode="known".
+        zero_mode: Neumann zero-mode handling. ``"known"`` (default) treats
+            the mean as supplied or quadrature-computed and reconstructs modes
+            1..M. ``"measurement"`` estimates the mean from the first sensor
+            reading at t_1 = T and reconstructs modes 0..M-1.
+        F_gpu: CuPy-compatible forcing for GPU backend.
+        F_x_gpu: CuPy-compatible spatial derivative for GPU backend.
 
     Returns:
         Tuple of `(f_true_vals, bar_f_n_vals)` where `f_true_vals` is the true
         initial condition on `x_grid` and `bar_f_n_vals` is the reconstructed
         initial condition on `x_grid`.
+
+    Raises:
+        ValueError: If backend or zero_mode is unsupported, if zero_mode="measurement"
+            is used with bc other than "neumann", or if zero_mode="measurement" is
+            combined with a supplied f_hat_0.
     """
     if backend not in {"cpu", "gpu"}:
         msg = f"Unsupported backend {backend!r} (expected 'cpu' or 'gpu')."
         raise ValueError(msg)
 
+    bc = validate_boundary_condition(bc)
+    zero_mode = _validate_zero_mode_options(zero_mode, bc, f_hat_0)
+
     # GPU backend is implemented in reconstruction_cupy; we import lazily to
     # avoid importing CuPy when not needed.
     if backend == "gpu":
+        if bc != "dirichlet":
+            msg = "Neumann reconstruction is currently implemented for backend='cpu' only."
+            raise ValueError(msg)
+
         try:
             from iu_pde_research.core.reconstruction_cupy import (
                 compute_modified_t_j_nonhomogeneous_gpu,
@@ -323,36 +443,26 @@ def compute_modified_t_j_nonhomogeneous(
     j_vals = np.arange(1, n_terms + 1)
 
     # Synthetic measurements representing those from sensor for (x0, t_k)
-    if abs(L - np.pi) < 1e-10:  # Equal to pi
-        f_hat_vals = np.array(
-            [
-                quad(lambda x, j_val=j: f_true(x) * np.sin(j_val * x), 0, L)[0] * 2 / L
-                for j in j_vals
-            ]
-        )
+    f_hat_vals = np.array(
+        [get_f_hat_true(int(j), f_true, L, bc) for j in j_vals],
+        dtype=np.float64,
+    )
 
-        j_squared = j_vals**2
-        sin_j_x0 = np.sin(j_vals * x0)
-    else:
-        f_hat_vals = np.array(
-            [
-                quad(
-                    lambda x, j_val=j: f_true(x) * np.sin(j_val * np.pi * x / L),
-                    0,
-                    L,
-                )[0]
-                * 2
-                / L
-                for j in j_vals
-            ]
-        )
-
-        j_squared = np.power(j_vals * np.pi / L, 2).astype(np.float64)
-        sin_j_x0 = np.sin(j_vals * np.pi * x0 / L)
+    j_squared = np.asarray([eigenvalue(int(j), L, bc) for j in j_vals])
+    sensor_j_x0 = _mode_values(j_vals, x0, L, bc)
 
     # Compute homogeneous part of NH case
     exp_matrix = np.exp(-np.outer(t_vec, j_squared))
-    u_homogeneous = np.sum(exp_matrix * f_hat_vals * sin_j_x0, axis=1)
+    u_homogeneous = np.sum(exp_matrix * f_hat_vals * sensor_j_x0, axis=1)
+
+    mean_coeff = 0.0
+    use_measurement_zero_mode = bc == "neumann" and zero_mode == "measurement"
+    if bc == "neumann":
+        if use_measurement_zero_mode:
+            u_homogeneous = u_homogeneous + _neumann_f_hat_0(f_true, L, None)
+        else:
+            mean_coeff = _neumann_f_hat_0(f_true, L, f_hat_0)
+            u_homogeneous = mean_coeff + u_homogeneous
 
     # Compute forcing contribution to u(x0, t_k) with truncation n_k per step.
     if F is not None:
@@ -368,10 +478,16 @@ def compute_modified_t_j_nonhomogeneous(
                         else compute_n_k(k, tk, C)
                     ),
                     L,
+                    bc,
                 )
                 for k, tk in enumerate(t_vec, start=1)
             ]
         )
+        if bc == "neumann":
+            u_forcing = u_forcing + np.array(
+                [compute_forcing_zero_mode_at_time(F, float(tk), L) for tk in t_vec],
+                dtype=np.float64,
+            )
         u_data = u_homogeneous + u_forcing
     else:
         u_data = u_homogeneous
@@ -380,60 +496,65 @@ def compute_modified_t_j_nonhomogeneous(
     bar_f_hat = np.zeros(int(np.ceil(n / 2)))
     max_k = len(bar_f_hat)
 
-    if abs(L - np.pi) < 1e-10:
-        sin_k_x0 = np.sin(np.arange(1, max_k + 1) * x0)
-        k_squared_cache = np.arange(1, max_k + 1) ** 2
+    if use_measurement_zero_mode:
+        k_vals = _neumann_k_vals(max_k, zero_mode)
     else:
-        sin_k_x0 = np.sin(np.arange(1, max_k + 1) * np.pi * x0 / L)
-        k_squared_cache = np.power(np.arange(1, max_k + 1) * np.pi / L, 2).astype(
-            np.float64
-        )
+        k_vals = np.arange(1, max_k + 1)
+    sensor_k_x0 = _mode_values(k_vals, x0, L, bc)
+    k_squared_cache = np.asarray([eigenvalue(int(j), L, bc) for j in k_vals])
 
     for k in range(1, max_k + 1):
         tk = t_vec[k - 1]
         u_data_k = u_data[k - 1]
+        if bc == "neumann" and not use_measurement_zero_mode:
+            u_data_k = u_data_k - mean_coeff
 
         if k == 1:
             if F is not None:
+                if bc == "neumann":
+                    u_data_k = u_data_k - compute_forcing_zero_mode_at_time(
+                        F, float(tk), L
+                    )
                 n_k = compute_n_k(k, tk, C)
                 if MAX_FORCING_MODES is not None:
                     n_k = min(n_k, MAX_FORCING_MODES)
                 forcing_contrib = compute_forcing_contribution_at_time(
-                    F, tk, x0, n_k, L
+                    F, tk, x0, n_k, L, bc
                 )
 
                 u_data_k = u_data_k - forcing_contrib
 
             c_bar_1 = np.exp(k_squared_cache[0] * tk) * u_data_k
-            bar_f_hat[0] = c_bar_1 / sin_k_x0[0]
+            bar_f_hat[0] = c_bar_1 / sensor_k_x0[0]
         else:
             j_indices = np.arange(1, k)
             exp_terms = np.exp(-k_squared_cache[j_indices - 1] * tk)
 
-            c_bar_prev = bar_f_hat[j_indices - 1] * sin_k_x0[j_indices - 1]
+            c_bar_prev = bar_f_hat[j_indices - 1] * sensor_k_x0[j_indices - 1]
             sum_prev = np.sum(exp_terms * c_bar_prev)
 
             if F is not None:
+                if bc == "neumann":
+                    u_data_k = u_data_k - compute_forcing_zero_mode_at_time(
+                        F, float(tk), L
+                    )
                 n_k = compute_n_k(k, tk, C)
                 if MAX_FORCING_MODES is not None:
                     n_k = min(n_k, MAX_FORCING_MODES)
                 forcing_contrib = compute_forcing_contribution_at_time(
-                    F, tk, x0, n_k, L
+                    F, tk, x0, n_k, L, bc
                 )
 
                 u_data_k = u_data_k - forcing_contrib
 
             c_bar_k = np.exp(k_squared_cache[k - 1] * tk) * (u_data_k - sum_prev)
-            bar_f_hat[k - 1] = c_bar_k / sin_k_x0[k - 1]
+            bar_f_hat[k - 1] = c_bar_k / sensor_k_x0[k - 1]
 
-    k_vals = np.arange(1, len(bar_f_hat) + 1)
+    basis_matrix = _mode_values(k_vals, x_grid, L, bc).T
+    bar_f_n_vals = basis_matrix @ bar_f_hat  # Take regular dot product of NDArrays
+    if bc == "neumann" and not use_measurement_zero_mode:
+        bar_f_n_vals = mean_coeff + bar_f_n_vals
 
-    if abs(L - np.pi) < 1e-10:
-        sin_matrix = np.sin(np.outer(x_grid, k_vals))
-    else:
-        sin_matrix = np.sin(np.outer(x_grid, k_vals * np.pi / L))
-
-    bar_f_n_vals = sin_matrix @ bar_f_hat  # Take regular dot product of NDArrays
     f_true_vals = np.asarray(
         [float(f_true(float(x))) for x in x_grid], dtype=np.float64
     )
@@ -446,7 +567,7 @@ def compute_linear_t_j_homogeneous(
     t0: float,
     x0: float,
     x_grid: np.ndarray,
-    f_true: Callable[[float], float] | None = None,
+    f_true: InitialCondition | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Reconstruct initial condition using a linear time sequence method.
@@ -520,7 +641,7 @@ def compute_linear_t_j_homogeneous(
             sum(bar_f_hat[k - 1] * np.sin(k * x) for k in range(1, len(bar_f_hat) + 1))
         )
 
-    f_true_vals = f_true(x_grid)
+    f_true_vals = np.asarray(f_true(x_grid), dtype=np.float64)
     bar_f_n_vals = np.array([bar_f_n(float(x)) for x in x_grid])
 
     return f_true_vals, bar_f_n_vals
