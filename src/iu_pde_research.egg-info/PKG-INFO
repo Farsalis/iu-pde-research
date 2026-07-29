@@ -24,15 +24,18 @@ PDE initial-temperature profile reconstruction for the 1D heat equation.
 
 This repository reconstructs an unknown initial condition \(f(x)\) from
 temperature measurements at a single spatial point over time. The code provides
-Fourier/sine-series based reconstruction methods for:
+spectral reconstruction methods for:
 
 - modified \(t_j\) (homogeneous),
 - modified \(t_j\) (non-homogeneous with forcing \(F(x,t)\)),
 - modified \(t_j\) (complex-valued homogeneous case),
 - linear time sequence (homogeneous).
 
-The model assumes Dirichlet boundary conditions on \([0, L]\), with default
-\(L = \pi\).
+Dirichlet boundary conditions remain the default on \([0, L]\), with default
+\(L = \pi\). The CPU core and CLI also support homogeneous Neumann boundary
+conditions for the modified \(t_j\) homogeneous and non-homogeneous workflows,
+using cosine modes and a separately handled zero mode. JAX and CuPy accelerated
+paths remain Dirichlet-only.
 
 ## Requirements
 
@@ -154,7 +157,17 @@ python nhh_re.py --modified_homogeneous
 python nhh_re.py --modified_nonhomogeneous --backend cpu
 python nhh_re.py --modified_complex_homogeneous
 python nhh_re.py --linear_homogeneous
+python nhh_re.py --modified_homogeneous --bc neumann
+python nhh_re.py --modified_nonhomogeneous --bc neumann
+python nhh_re.py --modified_homogeneous --bc neumann --zero-mode measurement
 ```
+
+Neumann options (CPU path for modified \(t_j\) homogeneous and non-homogeneous):
+
+- `--bc neumann`
+- `--zero-mode known` (default) or `--zero-mode measurement`
+- `--f-hat-0 VALUE` (known mean; only with `--zero-mode known`)
+- `--L VALUE` (domain length; default `pi`)
 
 Backend choices:
 
@@ -164,10 +177,18 @@ Backend choices:
 
 Initial condition options:
 
-- `--initial-condition default`
-- `--initial-condition sine_series_5`
-- `--initial-condition sine_series_10`
-- `--initial-condition sine_series_15`
+- `--initial-condition default` (algorithm-specific; cosine series under `--bc neumann`, otherwise the 5-term sine default)
+- `--initial-condition sine_series_5` — `sum_{j=2}^{5} (1/(2*j^2)) * sin(j*x)` (Dirichlet only)
+- `--initial-condition sine_series_10` — `sum_{j=2}^{10} (1/(2*j^2)) * sin(j*x)` (Dirichlet only)
+- `--initial-condition sine_series_15` — `sum_{j=2}^{15} (1/(2*j^2)) * sin(j*x)` (Dirichlet only)
+- `--initial-condition sine_series_new_5` — `sum_{j=2}^{5} (1/j^3) * sin(j*x)` (Dirichlet only)
+- `--initial-condition sine_series_new_10` — `sum_{j=2}^{10} (1/j^3) * sin(j*x)` (Dirichlet only)
+- `--initial-condition sine_series_new_15` — `sum_{j=2}^{15} (1/j^3) * sin(j*x)` (Dirichlet only)
+
+The sine-mode initial conditions violate the Neumann boundary condition
+`∂f/∂x|_{0,L} = 0`, so combining any `sine_series_*` option with `--bc neumann`
+is rejected with a `ValueError`. Omit `--initial-condition` under Neumann to use
+the cosine default.
 
 ### Batch mode
 
@@ -185,6 +206,8 @@ Examples:
 ```bash
 python nhh_re.py --algorithm modified_homogeneous --T 5 --x0 1.41 --n 20
 python nhh_re.py --algorithm modified_nonhomogeneous --backend gpu --T 5 --x0 1.41 --n 20 --output-dir out
+python nhh_re.py --algorithm modified_homogeneous --bc neumann --T 0.1 --x0 0.7 --n 4
+python nhh_re.py --algorithm modified_nonhomogeneous --bc neumann --zero-mode measurement --T 20 --x0 0.7 --n 4
 ```
 
 For `--T`, `--x0`, and `--n`, expressions are supported (for example

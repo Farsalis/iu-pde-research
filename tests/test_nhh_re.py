@@ -111,7 +111,7 @@ def test_run_single_reconstruction_neumann_homogeneous(
 ) -> None:
     """_run_single_reconstruction produces a PNG for Neumann homogeneous batch."""
     nhh._run_single_reconstruction(
-        "neumann_homogeneous",
+        "modified_homogeneous",
         T=0.1,
         x0=0.7,
         n=4,
@@ -129,7 +129,7 @@ def test_run_single_reconstruction_neumann_nonhomogeneous(
 ) -> None:
     """_run_single_reconstruction produces a PNG for Neumann non-homogeneous batch."""
     nhh._run_single_reconstruction(
-        "neumann_nonhomogeneous",
+        "modified_nonhomogeneous",
         T=0.1,
         x0=0.7,
         n=4,
@@ -145,7 +145,7 @@ def test_run_single_reconstruction_neumann_nonhomogeneous(
 def test_batch_filename_stem_neumann_suffix() -> None:
     """Neumann batch stems include bc and zero-mode markers."""
     stem = nhh._batch_filename_stem(
-        "neumann_homogeneous",
+        "modified_homogeneous",
         0.1,
         0.7,
         4,
@@ -153,6 +153,7 @@ def test_batch_filename_stem_neumann_suffix() -> None:
         zero_mode="measurement",
     )
     assert stem.endswith("_neumann_measurement")
+    assert stem.startswith("modified_homogeneous_")
 
 
 def test_validate_bc_cli_options_rejects_jax_neumann() -> None:

@@ -152,18 +152,6 @@ def _default_f_true_neumann(x: float | np.ndarray) -> float | np.ndarray:
     return values
 
 
-def _resolve_algorithm_and_bc(
-    algorithm: str,
-    bc: BoundaryCondition,
-) -> tuple[str, BoundaryCondition]:
-    """Map CLI algorithm aliases to a base algorithm and effective boundary condition."""
-    if algorithm in {"neumann_homogeneous", "neumann_modified_homogeneous"}:
-        return "modified_homogeneous", "neumann"
-    if algorithm in {"neumann_nonhomogeneous", "neumann_modified_nonhomogeneous"}:
-        return "modified_nonhomogeneous", "neumann"
-    return algorithm, bc
-
-
 def _validate_bc_cli_options(
     bc: BoundaryCondition,
     backend: str,
@@ -246,27 +234,19 @@ def _parse_args() -> argparse.Namespace:
         help="Run homogeneous reconstruction for linear t_j (demo).",
     )
     parser.add_argument(
-        "--neumann_homogeneous",
-        action="store_true",
-        help="Run homogeneous Neumann reconstruction once (CPU demo).",
-    )
-    parser.add_argument(
-        "--neumann_nonhomogeneous",
-        action="store_true",
-        help="Run non-homogeneous Neumann reconstruction once (CPU demo).",
-    )
-    parser.add_argument(
         "--algorithm",
         choices=[
             "modified_homogeneous",
             "modified_nonhomogeneous",
             "modified_complex_homogeneous",
             "linear_homogeneous",
-            "neumann_homogeneous",
-            "neumann_nonhomogeneous",
         ],
         default=None,
-        help="Reconstruction algorithm for batch mode.",
+        help=(
+            "Reconstruction algorithm for batch mode. "
+            "Use --bc neumann with modified_homogeneous or "
+            "modified_nonhomogeneous for Neumann runs."
+        ),
     )
     parser.add_argument(
         "--T",
@@ -428,8 +408,7 @@ def _run_single_reconstruction(
 
     Args:
         algorithm: CLI algorithm key (e.g. ``"modified_homogeneous"``,
-            ``"modified_nonhomogeneous"``, ``"linear_homogeneous"``,
-            ``"neumann_homogeneous"``, ``"neumann_nonhomogeneous"``).
+            ``"modified_nonhomogeneous"``, ``"linear_homogeneous"``).
         T: Time parameter (or t0 for linear).
         x0: Spatial measurement point.
         n: Number of time measurements.
@@ -442,32 +421,29 @@ def _run_single_reconstruction(
         f_hat_0: Optional known Neumann mean coefficient.
         L: Domain length.
     """
-    base_algorithm, effective_bc = _resolve_algorithm_and_bc(algorithm, bc)
-    _validate_bc_cli_options(
-        effective_bc, backend, zero_mode, f_hat_0, initial_condition
-    )
+    _validate_bc_cli_options(bc, backend, zero_mode, f_hat_0, initial_condition)
 
     stem = _batch_filename_stem(
         algorithm,
         T,
         x0,
         n,
-        bc=effective_bc,
+        bc=bc,
         zero_mode=zero_mode,
     )
     save_path = output_dir / f"{stem}.png"
 
-    f_true_callable = _get_f_true_for_algorithm(base_algorithm, initial_condition)
-    f_true = f_true_callable or _default_f_true_for_run(base_algorithm, effective_bc)
+    f_true_callable = _get_f_true_for_algorithm(algorithm, initial_condition)
+    f_true = f_true_callable or _default_f_true_for_run(algorithm, bc)
     neumann_kwargs = {
-        "bc": effective_bc,
+        "bc": bc,
         "zero_mode": zero_mode,
         "f_hat_0": f_hat_0,
         "L": L,
     }
 
-    if base_algorithm == "modified_homogeneous":
-        if effective_bc == "neumann":
+    if algorithm == "modified_homogeneous":
+        if bc == "neumann":
             f_true_vals, bar_f_n_vals = compute_modified_t_j(
                 n,
                 T,
@@ -502,8 +478,8 @@ def _run_single_reconstruction(
             save_path=str(save_path),
             show=False,
         )
-    elif base_algorithm == "modified_nonhomogeneous":
-        if effective_bc == "neumann":
+    elif algorithm == "modified_nonhomogeneous":
+        if bc == "neumann":
             f_true_vals, bar_f_n_vals = compute_modified_t_j_nonhomogeneous(
                 n,
                 T,
@@ -564,8 +540,8 @@ def _run_single_reconstruction(
             save_path=str(save_path),
             show=False,
         )
-    elif base_algorithm == "modified_complex_homogeneous":
-        if effective_bc == "neumann":
+    elif algorithm == "modified_complex_homogeneous":
+        if bc == "neumann":
             msg = "Neumann boundary conditions are not supported for the complex homogeneous algorithm."
             raise ValueError(msg)
         f_true_vals, bar_f_n_vals = compute_modified_t_j_homogeneous_complex(
@@ -583,9 +559,9 @@ def _run_single_reconstruction(
             show=False,
         )
     else:
-        if base_algorithm != "linear_homogeneous":
+        if algorithm != "linear_homogeneous":
             raise ValueError(f"Unknown algorithm: {algorithm!r}")
-        if effective_bc == "neumann":
+        if bc == "neumann":
             msg = "Neumann boundary conditions are not supported for the linear t_j algorithm."
             raise ValueError(msg)
         t0 = T
@@ -896,7 +872,7 @@ def main() -> None:
         print("Use the text boxes to adjust n, T, and x0 parameters.")
         create_interactive_plot()
         return
-    if args.neumann_homogeneous or (args.modified_homogeneous and bc == "neumann"):
+    if args.modified_homogeneous and bc == "neumann":
         print(
             "Running Neumann homogeneous case "
             f"(zero_mode={zero_mode}, L={domain_length:.4f})..."
@@ -908,9 +884,7 @@ def main() -> None:
             f_true=f_true_from_cli,
         )
         return
-    if args.neumann_nonhomogeneous or (
-        args.modified_nonhomogeneous and bc == "neumann"
-    ):
+    if args.modified_nonhomogeneous and bc == "neumann":
         print(
             "Running Neumann non-homogeneous case "
             f"(zero_mode={zero_mode}, L={domain_length:.4f})..."
@@ -1016,11 +990,13 @@ def main() -> None:
         "\nTo run complex homogeneous case w/ modified t_j, use: python nhh_re.py --modified_complex_homogeneous"
     )
     print(
-        "\nTo run Neumann homogeneous case, use: python nhh_re.py --neumann_homogeneous "
+        "\nTo run Neumann homogeneous case, use: python nhh_re.py "
+        "--modified_homogeneous --bc neumann "
         "[--zero-mode known|measurement] [--f-hat-0 VALUE] [--L VALUE]"
     )
     print(
-        "\nTo run Neumann non-homogeneous case, use: python nhh_re.py --neumann_nonhomogeneous "
+        "\nTo run Neumann non-homogeneous case, use: python nhh_re.py "
+        "--modified_nonhomogeneous --bc neumann "
         "[--zero-mode known|measurement] [--f-hat-0 VALUE] [--L VALUE]"
     )
     print(
@@ -1028,7 +1004,7 @@ def main() -> None:
         "--n 20 [--output-dir DIR]"
     )
     print(
-        "Neumann batch example: python nhh_re.py --algorithm neumann_homogeneous "
+        "Neumann batch example: python nhh_re.py --algorithm modified_homogeneous "
         "--bc neumann --T 0.1 --x0 0.7 --n 4"
     )
 

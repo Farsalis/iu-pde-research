@@ -139,9 +139,9 @@ python nhh_re.py --modified_homogeneous
 python nhh_re.py --modified_nonhomogeneous --backend cpu
 python nhh_re.py --modified_complex_homogeneous
 python nhh_re.py --linear_homogeneous
-python nhh_re.py --neumann_homogeneous
-python nhh_re.py --neumann_nonhomogeneous
-python nhh_re.py --neumann_homogeneous --zero-mode measurement
+python nhh_re.py --modified_homogeneous --bc neumann
+python nhh_re.py --modified_nonhomogeneous --bc neumann
+python nhh_re.py --modified_homogeneous --bc neumann --zero-mode measurement
 ```
 
 Neumann options (CPU path for modified \(t_j\) homogeneous and non-homogeneous):
@@ -169,9 +169,8 @@ Initial condition options:
 
 The sine-mode initial conditions violate the Neumann boundary condition
 `∂f/∂x|_{0,L} = 0`, so combining any `sine_series_*` option with `--bc neumann`
-(or with `--neumann_homogeneous` / `--neumann_nonhomogeneous`) is rejected with
-a `ValueError`. Omit `--initial-condition` under Neumann to use the cosine
-default.
+is rejected with a `ValueError`. Omit `--initial-condition` under Neumann to use
+the cosine default.
 
 ### Batch mode
 
@@ -183,16 +182,14 @@ Valid `--algorithm` values:
 - `modified_nonhomogeneous`
 - `modified_complex_homogeneous`
 - `linear_homogeneous`
-- `neumann_homogeneous`
-- `neumann_nonhomogeneous`
 
 Examples:
 
 ```bash
 python nhh_re.py --algorithm modified_homogeneous --T 5 --x0 1.41 --n 20
 python nhh_re.py --algorithm modified_nonhomogeneous --backend gpu --T 5 --x0 1.41 --n 20 --output-dir out
-python nhh_re.py --algorithm neumann_homogeneous --bc neumann --T 0.1 --x0 0.7 --n 4
-python nhh_re.py --algorithm neumann_nonhomogeneous --bc neumann --zero-mode measurement --T 20 --x0 0.7 --n 4
+python nhh_re.py --algorithm modified_homogeneous --bc neumann --T 0.1 --x0 0.7 --n 4
+python nhh_re.py --algorithm modified_nonhomogeneous --bc neumann --zero-mode measurement --T 20 --x0 0.7 --n 4
 ```
 
 For `--T`, `--x0`, and `--n`, expressions are supported (for example
