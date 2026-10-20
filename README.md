@@ -1,78 +1,217 @@
 # iu-pde-research
 
-PDE initial temperature profile reconstruction (modified t_j and linear time sequence methods).
+PDE initial-temperature profile reconstruction for the 1D heat equation.
 
 ## Overview
 
-This package reconstructs the **initial temperature profile** of the one-dimensional heat equation from temperature measurements at a single spatial point over time. Given measurements at one location \(x_0\) at a sequence of times, it recovers the initial condition \(f(x)\) using Fourier-based reconstruction algorithms.
+This repository reconstructs an unknown initial condition \(f(x)\) from
+temperature measurements at a single spatial point over time. The code provides
+spectral reconstruction methods for:
 
-## Mathematical context
+- modified \(t_j\) (homogeneous),
+- modified \(t_j\) (non-homogeneous with forcing \(F(x,t)\)),
+- modified \(t_j\) (complex-valued homogeneous case),
+- linear time sequence (homogeneous).
 
-- **Modified factorial t_j**: A time sequence derived from factorial ratios, used for both homogeneous and non-homogeneous heat equations. For the non-homogeneous case, a forcing term \(F(x,t)\) is supported.
-- **Linear time sequence**: An alternative method using a linear progression of measurement times (\(t_k = (n + k - 1) T\)).
-- The domain is \([0, L]\) (default \(L = \pi\)) with Dirichlet boundary conditions; reconstruction uses sine-series (Fourier) representation.
+Dirichlet boundary conditions remain the default on \([0, L]\), with default
+\(L = \pi\). The CPU core and CLI also support homogeneous Neumann boundary
+conditions for the modified \(t_j\) homogeneous and non-homogeneous workflows,
+using cosine modes and a separately handled zero mode. JAX and CuPy accelerated
+paths remain Dirichlet-only.
 
-## Installation
+## Requirements
+
+- Python 3.10+
+- Runtime dependencies (from `pyproject.toml`): `numpy`, `scipy`,
+  `matplotlib`, `jax`
+
+## Setup (step-by-step)
+
+1. Clone the repository and enter it.
+2. Create a virtual environment:
+
+   ```bash
+   python -m venv .venv
+   ```
+
+3. Activate it:
+   - Windows PowerShell:
+
+     ```bash
+     .\.venv\Scripts\Activate.ps1
+     ```
+
+   - macOS/Linux:
+
+     ```bash
+     source .venv/bin/activate
+     ```
+
+4. Upgrade pip:
+
+   ```bash
+   python -m pip install --upgrade pip
+   ```
+
+5. Install the package:
+   - Contributor setup (recommended):
+
+     ```bash
+     pip install -e ".[dev]"
+     ```
+
+   - Runtime-only setup:
+
+     ```bash
+     pip install -e .
+     ```
+
+6. Optional: install git hooks for local checks:
+
+   ```bash
+   pre-commit install
+   ```
+
+### Contributor setup (quick path)
+
+If you plan to contribute code, use this exact sequence from the repo root:
+
+```bash
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1  # Windows PowerShell
+python -m pip install --upgrade pip
+pip install -e ".[dev]"
+pre-commit install
+pytest
+```
+
+### Optional acceleration dependencies
+
+- JAX is already a runtime dependency. If you need specific CPU/GPU builds or
+  encounter install issues, follow the official JAX install guide:
+  [https://jax.readthedocs.io/en/latest/installation.html](https://jax.readthedocs.io/en/latest/installation.html)
+- CuPy is optional and only needed for `--backend gpu` (non-homogeneous path).
+  Install a CUDA-matching wheel using the official docs:
+  [https://docs.cupy.dev/en/stable/install.html](https://docs.cupy.dev/en/stable/install.html)
+
+Note: `requirements.txt` is a pinned environment snapshot and not the canonical
+project setup path. Use editable install from `pyproject.toml` as shown above.
+
+## Verify your installation
 
 From the repository root:
 
 ```bash
-pip install -e .
+pytest
 ```
 
-Optional (for tests, linting, type checking):
+Optional full checks:
 
 ```bash
-pip install -e ".[dev]"
+pre-commit run --all-files
 ```
 
 ## Usage
 
-Run the entry point and see all options:
+See all CLI options:
 
 ```bash
 python nhh_re.py --help
 ```
 
-- **Default**: Runs two demos — modified t_j (homogeneous) and linear time sequence — and prints usage hints.
-- **Interactive**: `python nhh_re.py --interactive` — opens a plot with text boxes to adjust \(n\), \(T\), and \(x_0\) in real time (modified t_j only).
-- **Non-homogeneous demo**: `python nhh_re.py --nonhomogeneous` — runs one non-homogeneous reconstruction with a built-in forcing term and prints error metrics.
-- **Batch**: Run many reconstructions and save plots. Requires `--algorithm` and at least one value each for `--T`, `--x0`, and `--n`. Optional: `--output-dir` (default: `reconstruction_output`).
+### Default run (no flags)
 
-  Example:
-  ```bash
-  python nhh_re.py --algorithm modified --T 5 --x0 1.41 --n 20
-  python nhh_re.py --algorithm nonhomogeneous --T 5 --x0 1.41 --n 20 --output-dir out
-  ```
+```bash
+python nhh_re.py
+```
 
-  For `--T`, `--x0`, and `--n` you can pass expressions (e.g. `np.pi/golden`, `sqrt(2)`).
+This runs:
+
+- modified \(t_j\) homogeneous reconstruction (CPU path by default),
+- linear-sequence homogeneous reconstruction,
+- then prints command hints for explicit modes.
+
+### Explicit demo modes
+
+```bash
+python nhh_re.py --interactive
+python nhh_re.py --modified_homogeneous
+python nhh_re.py --modified_nonhomogeneous --backend cpu
+python nhh_re.py --modified_complex_homogeneous
+python nhh_re.py --linear_homogeneous
+python nhh_re.py --modified_homogeneous --bc neumann
+python nhh_re.py --modified_nonhomogeneous --bc neumann
+python nhh_re.py --modified_homogeneous --bc neumann --zero-mode measurement
+```
+
+Neumann options (CPU path for modified \(t_j\) homogeneous and non-homogeneous):
+
+- `--bc neumann`
+- `--zero-mode known` (default) or `--zero-mode measurement`
+- `--f-hat-0 VALUE` (known mean; only with `--zero-mode known`)
+- `--L VALUE` (domain length; default `pi`)
+
+Backend choices:
+
+- `--backend cpu`
+- `--backend jax`
+- `--backend gpu` (CuPy installed; non-homogeneous GPU path)
+
+Initial condition options:
+
+- `--initial-condition default` (algorithm-specific; cosine series under `--bc neumann`, otherwise the 5-term sine default)
+- `--initial-condition sine_series_5` — `sum_{j=2}^{5} (1/(2*j^2)) * sin(j*x)` (Dirichlet only)
+- `--initial-condition sine_series_10` — `sum_{j=2}^{10} (1/(2*j^2)) * sin(j*x)` (Dirichlet only)
+- `--initial-condition sine_series_15` — `sum_{j=2}^{15} (1/(2*j^2)) * sin(j*x)` (Dirichlet only)
+- `--initial-condition sine_series_new_5` — `sum_{j=2}^{5} (1/j^3) * sin(j*x)` (Dirichlet only)
+- `--initial-condition sine_series_new_10` — `sum_{j=2}^{10} (1/j^3) * sin(j*x)` (Dirichlet only)
+- `--initial-condition sine_series_new_15` — `sum_{j=2}^{15} (1/j^3) * sin(j*x)` (Dirichlet only)
+
+The sine-mode initial conditions violate the Neumann boundary condition
+`∂f/∂x|_{0,L} = 0`, so combining any `sine_series_*` option with `--bc neumann`
+is rejected with a `ValueError`. Omit `--initial-condition` under Neumann to use
+the cosine default.
+
+### Batch mode
+
+Batch mode requires `--algorithm`, `--T`, `--x0`, and `--n`.
+
+Valid `--algorithm` values:
+
+- `modified_homogeneous`
+- `modified_nonhomogeneous`
+- `modified_complex_homogeneous`
+- `linear_homogeneous`
+
+Examples:
+
+```bash
+python nhh_re.py --algorithm modified_homogeneous --T 5 --x0 1.41 --n 20
+python nhh_re.py --algorithm modified_nonhomogeneous --backend gpu --T 5 --x0 1.41 --n 20 --output-dir out
+python nhh_re.py --algorithm modified_homogeneous --bc neumann --T 0.1 --x0 0.7 --n 4
+python nhh_re.py --algorithm modified_nonhomogeneous --bc neumann --zero-mode measurement --T 20 --x0 0.7 --n 4
+```
+
+For `--T`, `--x0`, and `--n`, expressions are supported (for example
+`np.pi/golden`, `sqrt(2)`, `2*10`).
 
 ## Project structure
 
-- **`nhh_re.py`** — Command-line entry point (demos, interactive mode, batch).
-- **`src/iu_pde_research/`** — Main package:
-  - **`core/`** — Reconstruction algorithms, forcing-term computations, and shared utilities (Fourier coefficients, time vectors).
-  - **`visualization/`** — Plotting and interactive figures (true vs reconstructed \(f\), error metrics).
-- **`tests/`** — Pytest suite for core, forcing, utils, visualization, and CLI helpers.
+- `nhh_re.py` - CLI entry point (default run, demos, interactive mode, batch)
+- `src/iu_pde_research/core/`
+  - `reconstruction.py`
+  - `reconstruction_jax.py`
+  - `reconstruction_cupy.py`
+  - `forcing.py`
+  - `forcing_autodiff.py`
+  - `forcing_cupy.py`
+  - `utils.py`
+- `src/iu_pde_research/visualization/` - plotting and interactive visualization
+- `tests/` - pytest suite for core, visualization, and CLI behavior
+- `benchmarks/` - benchmark scripts
+- `docs/core/` - module-level technical notes
 
-## Testing
+## Contributing and standards
 
-From the repository root:
-
-```bash
-pip install -e .
-pytest
-```
-
-With dev dependencies and full toolchain:
-
-```bash
-pip install -e ".[dev]"
-pre-commit run --all-files
-pytest
-```
-
-## References
-
-- [CONTRIBUTING.md](docs/CONTRIBUTING.md) — How to contribute and run checks.
-- Code style and docstrings: `docs/RULES.md`
+- Contributor workflow: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
+- Project rules/style guide: [docs/RULES.md](docs/RULES.md)

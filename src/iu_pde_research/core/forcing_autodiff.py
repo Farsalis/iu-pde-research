@@ -5,13 +5,14 @@ supply F_x explicitly. See agent_references/JAX Automatic Differentiation Explai
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import jax
 import jax.numpy as jnp
 
 # Enable float64 so F_x and quad use consistent precision (avoids truncation warning).
-jax.config.update("jax_enable_x64", True)
+_jax_config_update = cast(Callable[[str, bool], None], jax.config.update)
+_jax_config_update("jax_enable_x64", True)
 
 
 def make_F_x_from_F(F: Callable[..., Any]) -> Callable[[float, float], float]:

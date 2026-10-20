@@ -60,9 +60,9 @@ def test_parse_int_expr_invalid(invalid: str) -> None:
 @pytest.mark.parametrize(
     "algorithm,T,x0,n",
     [
-        ("modified", 5.0, 1.41, 20),
-        ("linear", 1e-3, np.pi / 2, 4),
-        ("nonhomogeneous", 5.0, 2.0, 10),
+        ("modified_homogeneous", 5.0, 1.41, 20),
+        ("linear_homogeneous", 1e-3, np.pi / 2, 4),
+        ("modified_nonhomogeneous", 5.0, 2.0, 10),
     ],
 )
 def test_batch_filename_stem_safe_and_formatted(
@@ -77,9 +77,14 @@ def test_batch_filename_stem_safe_and_formatted(
 
 
 def test_run_single_reconstruction_modified(tmp_path: Path, x_grid: np.ndarray) -> None:
-    """_run_single_reconstruction produces a PNG for algorithm=modified."""
+    """_run_single_reconstruction produces a PNG for modified_homogeneous."""
     nhh._run_single_reconstruction(
-        "modified", T=1.0, x0=np.pi / 2, n=4, output_dir=tmp_path, x_grid=x_grid
+        "modified_homogeneous",
+        T=1.0,
+        x0=np.pi / 2,
+        n=4,
+        output_dir=tmp_path,
+        x_grid=x_grid,
     )
     pngs = list(tmp_path.glob("*.png"))
     assert len(pngs) == 1
@@ -87,13 +92,74 @@ def test_run_single_reconstruction_modified(tmp_path: Path, x_grid: np.ndarray) 
 
 
 def test_run_single_reconstruction_linear(tmp_path: Path, x_grid: np.ndarray) -> None:
-    """_run_single_reconstruction produces a PNG for algorithm=linear."""
+    """_run_single_reconstruction produces a PNG for linear_homogeneous."""
     nhh._run_single_reconstruction(
-        "linear", T=1e-3, x0=np.pi / 2, n=4, output_dir=tmp_path, x_grid=x_grid
+        "linear_homogeneous",
+        T=1e-3,
+        x0=np.pi / 2,
+        n=4,
+        output_dir=tmp_path,
+        x_grid=x_grid,
     )
     pngs = list(tmp_path.glob("*.png"))
     assert len(pngs) == 1
     assert pngs[0].stat().st_size > 0
+
+
+def test_run_single_reconstruction_neumann_homogeneous(
+    tmp_path: Path, x_grid: np.ndarray
+) -> None:
+    """_run_single_reconstruction produces a PNG for Neumann homogeneous batch."""
+    nhh._run_single_reconstruction(
+        "modified_homogeneous",
+        T=0.1,
+        x0=0.7,
+        n=4,
+        output_dir=tmp_path,
+        x_grid=x_grid,
+        bc="neumann",
+    )
+    pngs = list(tmp_path.glob("*neumann_known*.png"))
+    assert len(pngs) == 1
+    assert pngs[0].stat().st_size > 0
+
+
+def test_run_single_reconstruction_neumann_nonhomogeneous(
+    tmp_path: Path, x_grid: np.ndarray
+) -> None:
+    """_run_single_reconstruction produces a PNG for Neumann non-homogeneous batch."""
+    nhh._run_single_reconstruction(
+        "modified_nonhomogeneous",
+        T=0.1,
+        x0=0.7,
+        n=4,
+        output_dir=tmp_path,
+        x_grid=x_grid,
+        bc="neumann",
+    )
+    pngs = list(tmp_path.glob("*neumann_known*.png"))
+    assert len(pngs) == 1
+    assert pngs[0].stat().st_size > 0
+
+
+def test_batch_filename_stem_neumann_suffix() -> None:
+    """Neumann batch stems include bc and zero-mode markers."""
+    stem = nhh._batch_filename_stem(
+        "modified_homogeneous",
+        0.1,
+        0.7,
+        4,
+        bc="neumann",
+        zero_mode="measurement",
+    )
+    assert stem.endswith("_neumann_measurement")
+    assert stem.startswith("modified_homogeneous_")
+
+
+def test_validate_bc_cli_options_rejects_jax_neumann() -> None:
+    """Neumann simulations reject accelerated backends at the CLI layer."""
+    with pytest.raises(ValueError, match="CPU-only"):
+        nhh._validate_bc_cli_options("neumann", "jax", "known", None)
 
 
 def test_cli_help() -> None:
@@ -106,3 +172,4 @@ def test_cli_help() -> None:
     )
     assert result.returncode == 0
     assert "reconstruction" in result.stdout.lower()
+    assert "neumann" in result.stdout.lower()

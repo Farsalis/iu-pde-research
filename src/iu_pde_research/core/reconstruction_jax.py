@@ -11,22 +11,32 @@ as possible so callers can switch between CPU and GPU backends.
 """
 
 from collections.abc import Callable
-
-import numpy as np
+from typing import cast
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
-from iu_pde_research.core.utils import compute_t_vec, get_default_f_true
-
+from iu_pde_research.core.utils import (
+    InitialCondition,
+    compute_t_vec,
+    get_default_f_true,
+)
 
 # Use float64 so results match the SciPy/NumPy CPU path.
-jax.config.update("jax_enable_x64", True)
+_jax_config_update = cast(Callable[[str, bool], None], jax.config.update)
+_jax_config_update("jax_enable_x64", True)
 
 
 def _jax_default_f_true(x: jnp.ndarray) -> jnp.ndarray:
     """Default initial condition expressed with JAX ops."""
-    return jnp.sin(2.0 * x) + 0.5 * jnp.sin(5.0 * x)
+    return (
+        (1.0 / 8.0) * jnp.sin(2.0 * x)
+        + (1.0 / 27.0) * jnp.sin(3.0 * x)
+        + (1.0 / 64.0) * jnp.sin(4.0 * x)
+        + (1.0 / 125.0) * jnp.sin(5.0 * x)
+        + (1.0 / 216.0) * jnp.sin(6.0 * x)
+    )
 
 
 def _jax_vectorized_f_hat_default(
@@ -54,7 +64,7 @@ def _jax_vectorized_f_hat_default(
     return (2.0 / float(L)) * integrals
 
 
-@jax.jit
+@jax.jit  # type: ignore[misc, unused-ignore]
 def _compute_modified_t_j_kernel(
     t_vec: jnp.ndarray,
     x0: float,
@@ -112,7 +122,10 @@ def _compute_modified_t_j_kernel(
             value = jnp.exp(k_sq_tk) * (u_data[i] - sum_prev) / sin_k_x0[i]
             return bar_f_hat.at[i].set(value)
 
-        return jax.lax.cond(i == 0, first_case, general_case, operand=None)
+        return cast(
+            jnp.ndarray,
+            jax.lax.cond(i == 0, first_case, general_case, operand=None),
+        )
 
     bar_f_hat0 = jnp.zeros(max_k, dtype=t_vec.dtype)
     bar_f_hat = jax.lax.fori_loop(0, max_k, body_fun, bar_f_hat0)
@@ -124,7 +137,7 @@ def _compute_modified_t_j_kernel(
     # True initial condition on x_grid (default homogeneous case).
     f_true_vals = _jax_default_f_true(x_grid)
 
-    return f_true_vals, bar_f_n_vals
+    return f_true_vals, cast(jnp.ndarray, bar_f_n_vals)
 
 
 def compute_modified_t_j_jax(
@@ -132,7 +145,7 @@ def compute_modified_t_j_jax(
     T: float,
     x0: float,
     x_grid: np.ndarray,
-    f_true: Callable[[float | np.ndarray], float | np.ndarray] | None = None,
+    f_true: InitialCondition | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """JAX-accelerated modified t_j reconstruction (homogeneous case).
 
@@ -160,12 +173,9 @@ def compute_modified_t_j_jax(
     t_vec = jnp.asarray(t_vec_np)
     x_grid_jax = jnp.asarray(x_grid_np)
 
-    f_true_vals_jax, bar_f_n_vals_jax = _compute_modified_t_j_kernel(
-        t_vec, float(x0), x_grid_jax
-    )
+    _, bar_f_n_vals_jax = _compute_modified_t_j_kernel(t_vec, float(x0), x_grid_jax)
 
     # Reference true values via user-supplied CPU function for consistency.
     f_true_vals_np = np.asarray(f_true(x_grid_np), dtype=np.float64)
 
     return f_true_vals_np, np.asarray(bar_f_n_vals_jax)
-

@@ -181,4 +181,3 @@ def compute_forcing_contribution_at_time_gpu(
 
     u_F_tk = cp.sum(integral_j * sin_j_x0)
     return float(u_F_tk.get())
-

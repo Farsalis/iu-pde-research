@@ -109,116 +109,101 @@ result = compute_shipping(
 
 > **Source note:** Section E, Black — "any color you like."
 
-#### Rule D.1.4 — Specific Docstring Formatting
+#### Rule D.1.4 — Specific Docstring Formatting (Google style)
 
-**Rationale:** "Standardize opinionated Docstring formatting beyond PEP8 documentation."
+**Rationale:** Standardize opinionated docstring formatting beyond PEP 257 by adopting Google-style section headers. Google style is widely used in the Python ecosystem, well-supported by tooling (Sphinx via `sphinx.ext.napoleon`, mkdocstrings, IDE renderers), and reads cleanly as plain prose.
 
-```python
-# ✅ Good:
-#   - Follows documented standards: one-line description at top, blank line, and body. 
-#   - Documents each pertinent part of the function. 
-#   - Formats docstring body items in the following format:
-#       ":[info_category]: 
-#            [info_item_name]: [info_item_desc]
-#        "
-#   - Does not describe return value, since already obvious from function return type.
-
-def my_cool_function(my_cool_name: str) -> None:
-    """This is my really cool function.
-
-    :args:
-        my_cool_name: String of my really cool name.  
-    """
-
-    print(f"Wow! Super Cool Function {my_cool_name}")
-```
+**Section headers must be capitalized words followed by a colon** (`Args:`, `Returns:`, `Raises:`, `Attributes:`, `Yields:`, `Examples:`). Do not use the `:args:` / `:returns:` ReST/Sphinx field syntax. Body items under each header are indented one level (4 spaces) and follow the pattern `name: description`.
 
 ```python
 # ✅ Good:
-#   - Follows documented standards: one-line description at top, blank line, and body. 
-#   - Documents each pertinent part of the function. 
-#        - Adds further optional description to further explain a more complicated      #              function.
-#   - Formats docstring body items in the following format:
-#       ":[info_category]: 
-#            [info_item_name]: [info_item_desc]
-#           
-#        :[info_category]:
-#           [info_category_desc] 
-#       "
-#   - Describe return value beyond its type.
-
-def my_cooler_complex_function(my_cool_name: str) -> dict[str: str]:
-    """This is my really cool function.
-
-    I am adding further description to my cool function. It has a super cool dictionary with awesome key: value pairs.
-
-    :args:
-        my_cool_name: String of my really cool name.  
-    
-    :returns: 
-        A string dictionary object that is super cool.
-    """
-    super_cool_dict = dict(key_1=f"val_1_{my_cool_name}", key_2=f"val_2_{my_cool_name}")
-
-    print(f"Wow! Super Cool Function {my_cool_name}")
-    print(f"Awesome Dictionary Too: {super_cool_dict}")
-
-    return super_cool_dict
-```
-
-```python
-# ❌ Bad:
-#   - Formats docstring body items in the following format:
-#       "[InfoCategory]: 
-#            [info_item_name]: [info_item_desc]
-#       "
-#   - Describes return value when it is already obvious from function return type.
-
+#   - One-line summary at the top, blank line, then optional further description.
+#   - Google-style section headers with a trailing colon.
+#   - Documents each pertinent argument.
+#   - Omits a Returns: section when the return value is obvious from the type annotation.
 
 def my_cool_function(my_cool_name: str) -> None:
     """This is my really cool function.
 
     Args:
-        my_cool_name: String of my really cool name.  
-    
-    Returns: 
+        my_cool_name: String of my really cool name.
+    """
+    print(f"Wow! Super Cool Function {my_cool_name}")
+```
+
+```python
+# ✅ Good:
+#   - Adds further description for a more complicated function.
+#   - Documents a non-obvious return value beyond its type.
+
+def my_cooler_complex_function(my_cool_name: str) -> dict[str, str]:
+    """This is my really cool function.
+
+    It builds and prints a small dictionary keyed off the caller's name and
+    returns the dictionary for further use.
+
+    Args:
+        my_cool_name: String of my really cool name.
+
+    Returns:
+        A two-entry dictionary mapping ``"key_1"`` and ``"key_2"`` to formatted
+        string values derived from ``my_cool_name``.
+    """
+    super_cool_dict = {
+        "key_1": f"val_1_{my_cool_name}",
+        "key_2": f"val_2_{my_cool_name}",
+    }
+    print(f"Wow! Super Cool Function {my_cool_name}")
+    print(f"Awesome Dictionary Too: {super_cool_dict}")
+    return super_cool_dict
+```
+
+```python
+# ❌ Bad:
+#   - Uses ReST/Sphinx :args: / :returns: field syntax instead of Google headers.
+#   - Documents a Returns: that is already obvious from the function signature.
+
+def my_cool_function(my_cool_name: str) -> None:
+    """This is my really cool function.
+
+    :args:
+        my_cool_name: String of my really cool name.
+
+    :returns:
         Nothing.
     """
     print("Wow! Super Cool Function")
 ```
 
 **Structure of a Completely Filled Out Acceptable Docstring:**
-    ```python
-    """[One-liner Function Description]
 
-    [Further description of function]
+```python
+"""[One-liner Function Description]
 
-    :args:
-        [arg_item_name]: [arg_item_desc]  
-    
-    :returns: 
-        [Return Value Description]
+[Further description of function]
 
-    :raises:
-        [error_type]: [error_meaning_desc]
-    
-    :attributes:
-        [Description of Pertinent Attribute 1]
-        [Description of Pertinent Attribute 2]
-    
-    :example:
-        >>> call_function(args)
-        [Return Value]
-    """
-    # Beginning of function body...
-    .
-    .
-    .
-    ```
+Args:
+    [arg_item_name]: [arg_item_desc]
 
-**Exceptions:** None. Do always classify pertinent aspects of the function according to the acceptable overall docstring structure.
+Returns:
+    [Return Value Description]
 
-> **Source note:** None. Some inspiration taken from Google's Python styling guide.
+Raises:
+    [error_type]: [error_meaning_desc]
+
+Attributes:
+    [Description of Pertinent Attribute 1]
+    [Description of Pertinent Attribute 2]
+
+Examples:
+    >>> call_function(args)
+    [Return Value]
+"""
+```
+
+**Exceptions:** Omit the `Returns:` section when the function's return value is fully described by its type annotation and the one-line summary (e.g. simple getters, predicates, and parsers). Always document non-trivial `Args:` and any `Raises:` on public functions.
+
+> **Source note:** Google Python Style Guide — "Docstrings" section. Compatible with `sphinx.ext.napoleon` for documentation generation.
 
 ***
 

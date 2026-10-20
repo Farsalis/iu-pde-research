@@ -143,7 +143,6 @@ def create_interactive_plot() -> None:
         "x0_str": x0_init_str,
     }
 
-    # TODO: Make this asynchronous
     def update_plot(n: int, T: float, x0: float) -> None:
         """Update plot with new parameters."""
         ax.set_title(
@@ -181,7 +180,7 @@ def create_interactive_plot() -> None:
             fig.canvas.draw_idle()
 
     # Create text box labels
-    ax_n_label = plt.axes([0.15, 0.18, 0.1, 0.03])
+    ax_n_label = plt.axes((0.15, 0.18, 0.1, 0.03))
     ax_n_label.axis("off")
     ax_n_label.text(
         0,
@@ -191,10 +190,10 @@ def create_interactive_plot() -> None:
         verticalalignment="center",
         horizontalalignment="left",
     )
-    ax_n = plt.axes([0.25, 0.18, 0.15, 0.04])
+    ax_n = plt.axes((0.25, 0.18, 0.15, 0.04))
     textbox_n = TextBox(ax_n, "", initial=str(n_init))
 
-    ax_T_label = plt.axes([0.15, 0.12, 0.1, 0.03])
+    ax_T_label = plt.axes((0.15, 0.12, 0.1, 0.03))
     ax_T_label.axis("off")
     ax_T_label.text(
         0,
@@ -204,10 +203,10 @@ def create_interactive_plot() -> None:
         verticalalignment="center",
         horizontalalignment="left",
     )
-    ax_T = plt.axes([0.25, 0.12, 0.15, 0.04])
+    ax_T = plt.axes((0.25, 0.12, 0.15, 0.04))
     textbox_T = TextBox(ax_T, "", initial=str(T_init))
 
-    ax_x0_label = plt.axes([0.15, 0.06, 0.1, 0.03])
+    ax_x0_label = plt.axes((0.15, 0.06, 0.1, 0.03))
     ax_x0_label.axis("off")
     ax_x0_label.text(
         0,
@@ -217,10 +216,10 @@ def create_interactive_plot() -> None:
         verticalalignment="center",
         horizontalalignment="left",
     )
-    ax_x0 = plt.axes([0.25, 0.06, 0.15, 0.04])
+    ax_x0 = plt.axes((0.25, 0.06, 0.15, 0.04))
     textbox_x0 = TextBox(ax_x0, "", initial=x0_init_str)
 
-    ax_instructions = plt.axes([0.45, 0.06, 0.5, 0.15])
+    ax_instructions = plt.axes((0.45, 0.06, 0.5, 0.15))
     ax_instructions.axis("off")
     ax_instructions.text(0, 0.8, "Instructions:", fontsize=11, fontweight="bold")
     ax_instructions.text(0, 0.6, "Type a value in any box and press Enter", fontsize=10)
@@ -285,7 +284,7 @@ def create_interactive_plot() -> None:
                 "np": np,
             }
 
-            x0 = float(eval(text, safe_dict))
+            x0 = float(eval(text, safe_dict))  # nosec B307 - restricted math parser
 
             if x0 <= 0 or x0 >= np.pi:
                 raise ValueError(f"x0 must be in (0, pi) = (0, {np.pi:.3f})")

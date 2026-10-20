@@ -41,4 +41,3 @@ def test_compute_modified_t_j_jax_matches_cpu(
 
     np.testing.assert_allclose(f_true_cpu, f_true_jax, rtol=1e-6, atol=1e-7)
     np.testing.assert_allclose(bar_cpu, bar_jax, rtol=1e-5, atol=1e-6)
-

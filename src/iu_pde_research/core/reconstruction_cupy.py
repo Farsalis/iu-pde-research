@@ -11,20 +11,23 @@ as possible so callers can switch between CPU and GPU backends.
 """
 
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 
 from iu_pde_research.core.forcing import compute_n_k
 from iu_pde_research.core.forcing_cupy import (
-    compute_forcing_contribution_at_time_default_F_cupy,
     compute_forcing_contribution_at_time_gpu,
     compute_forcing_truncation_constant_C_gpu,
     default_F_cupy,
     default_F_x_cupy,
 )
-from iu_pde_research.core.utils import compute_t_vec, get_default_f_true
-
 from iu_pde_research.core.reconstruction import MAX_FORCING_MODES
+from iu_pde_research.core.utils import (
+    InitialCondition,
+    compute_t_vec,
+    get_default_f_true,
+)
 
 try:
     import cupy as cp
@@ -41,7 +44,7 @@ def _compute_homogeneous_gpu(
     T: float,
     x0: float,
     x_grid: np.ndarray,
-    f_true: Callable[[float], float] | None = None,
+    f_true: InitialCondition | None = None,
     L: float = np.pi,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Shared homogeneous part for GPU path: returns (t_vec, u_homogeneous_cp, j_vals, k_vals)."""
@@ -53,10 +56,12 @@ def _compute_homogeneous_gpu(
     n_terms = 50
     j_vals = np.arange(1, n_terms + 1)
 
+    j_squared: np.ndarray[tuple[Any, ...], np.dtype[np.float64]]
+
     if abs(L - np.pi) < 1e-10:
         f_hat_vals = np.array(
             [
-                __import__("scipy").integrate.quad(  # type: ignore[attr-defined]
+                __import__("scipy").integrate.quad(
                     lambda x, j_val=j: f_true(x) * np.sin(j_val * x),
                     0,
                     L,
@@ -66,12 +71,12 @@ def _compute_homogeneous_gpu(
                 for j in j_vals
             ]
         )
-        j_squared = j_vals**2
+        j_squared = (j_vals**2).astype(np.float64)
         sin_j_x0 = np.sin(j_vals * x0)
     else:
         f_hat_vals = np.array(
             [
-                __import__("scipy").integrate.quad(  # type: ignore[attr-defined]
+                __import__("scipy").integrate.quad(
                     lambda x, j_val=j: f_true(x) * np.sin(j_val * np.pi * x / L),
                     0,
                     L,
@@ -81,7 +86,7 @@ def _compute_homogeneous_gpu(
                 for j in j_vals
             ]
         )
-        j_squared = (j_vals * np.pi / L) ** 2
+        j_squared = ((j_vals * np.pi / L) ** 2).astype(np.float64)
         sin_j_x0 = np.sin(j_vals * np.pi * x0 / L)
 
     t_vec_cp = cp.asarray(t_vec)
@@ -102,7 +107,7 @@ def compute_modified_t_j_nonhomogeneous_gpu(
     x_grid: np.ndarray,
     F_gpu: Callable[[cp.ndarray, cp.ndarray], cp.ndarray],
     F_x_gpu: Callable[[cp.ndarray, cp.ndarray], cp.ndarray],
-    f_true: Callable[[float], float] | None = None,
+    f_true: InitialCondition | None = None,
     L: float = np.pi,
 ) -> tuple[np.ndarray, np.ndarray]:
     """General CuPy-accelerated non-homogeneous modified t_j reconstruction."""
@@ -205,7 +210,7 @@ def compute_modified_t_j_nonhomogeneous_cupy(
     x_grid: np.ndarray,
     F: Callable[[float, float], float] | None = None,
     F_x: Callable[[float, float], float] | None = None,
-    f_true: Callable[[float], float] | None = None,
+    f_true: InitialCondition | None = None,
     L: float = np.pi,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Backward-compatible entry point for CuPy implementation.
@@ -217,11 +222,10 @@ def compute_modified_t_j_nonhomogeneous_cupy(
     if F is None:
         # Purely homogeneous case: use the homogeneous GPU helper and finish
         # reconstruction on GPU.
-        t_vec, u_homogeneous_cp, _, _ = _compute_homogeneous_gpu(
+        _, u_homogeneous_cp, _, _ = _compute_homogeneous_gpu(
             n=n, T=T, x0=x0, x_grid=x_grid, f_true=f_true, L=L
         )
         u_data_cp = u_homogeneous_cp
-        u_forcing = None
     else:
         if L != np.pi:
             msg = (
@@ -282,8 +286,9 @@ def compute_modified_t_j_nonhomogeneous_cupy(
         sin_matrix_cp = cp.sin(cp.outer(x_grid_cp, k_vals_cp * cp.pi / L))
 
     bar_f_n_vals_cp = sin_matrix_cp @ bar_f_hat_cp
-    f_true_vals_np = np.asarray((f_true or get_default_f_true)(x_grid), dtype=np.float64)
+    f_true_vals_np = np.asarray(
+        (f_true or get_default_f_true)(x_grid), dtype=np.float64
+    )
     bar_f_n_vals_np = cp.asnumpy(bar_f_n_vals_cp)
 
     return f_true_vals_np, bar_f_n_vals_np
-

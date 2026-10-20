@@ -14,18 +14,18 @@ from __future__ import annotations
 import statistics
 import time
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
 from iu_pde_research.core import (
     compute_modified_t_j_nonhomogeneous,
-    compute_modified_t_j_nonhomogeneous_cupy,
 )
 
 try:
     import cupy as cp
 except ImportError:  # pragma: no cover - benchmark script only
-    cp = None  # type: ignore[assignment]
+    cp = None
 
 
 @dataclass
@@ -37,7 +37,7 @@ class BenchmarkConfig:
     repeats: int = 3
 
 
-def _time_call(func, *args, repeats: int = 3):
+def _time_call(func: Any, *args: Any, repeats: int = 3) -> list[float]:
     """Return list of elapsed times in seconds for repeated calls."""
     times: list[float] = []
     for _ in range(repeats):
@@ -84,8 +84,8 @@ def run_benchmark(cfg: BenchmarkConfig) -> None:
         F=F_default,
         F_x=F_x_default,
         backend="gpu",
-        F_gpu=lambda x, t: np.sin(x) * np.exp(-t),  # type: ignore[arg-type]
-        F_x_gpu=lambda x, t: np.cos(x) * np.exp(-t),  # type: ignore[arg-type]
+        F_gpu=lambda x, t: np.sin(x) * np.exp(-t),
+        F_x_gpu=lambda x, t: np.cos(x) * np.exp(-t),
     )
 
     # Time CPU implementation.
@@ -130,7 +130,7 @@ def run_benchmark(cfg: BenchmarkConfig) -> None:
     print(f"CPU   mean = {cpu_mean:.4f}  std = {cpu_std:.4f}")
     print(f"CuPy  mean = {cupy_mean:.4f}  std = {cupy_std:.4f}")
     if cupy_mean > 0.0:
-        print(f"Speedup (CPU / CuPy) ≈ {cpu_mean / cupy_mean:.2f}×")
+        print(f"Speedup (CPU / CuPy) ~= {cpu_mean / cupy_mean:.2f}x")
 
     if cp is not None:
         dev = cp.cuda.runtime.getDeviceProperties(0)
@@ -141,4 +141,3 @@ def run_benchmark(cfg: BenchmarkConfig) -> None:
 if __name__ == "__main__":  # pragma: no cover - manual benchmark
     cfg = BenchmarkConfig()
     run_benchmark(cfg)
-

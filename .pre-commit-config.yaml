@@ -10,6 +10,8 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
+        pass_filenames: false
+        args: ["src", "nhh_re.py"]
         additional_dependencies: []
 
   - repo: https://github.com/PyCQA/bandit

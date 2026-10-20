@@ -4,6 +4,8 @@ Covers get_default_f_true, get_f_hat_true, and compute_t_vec (shape, dtype,
 ordering).
 """
 
+# mypy: disable-error-code="misc"
+
 import numpy as np
 import pytest
 
@@ -23,10 +25,11 @@ def test_get_default_f_true_scalar_in_scalar_out() -> None:
 
 
 def test_get_default_f_true_known_value() -> None:
-    """get_default_f_true at x=pi/2 is sin(2*pi/2)+0.5*sin(5*pi/2) = 0 + 0.5 = 0.5."""
+    """get_default_f_true at x=pi/2 matches the current sine-series default."""
     x = np.pi / 2
     result = get_default_f_true(x)
-    assert result == pytest.approx(0.5)
+    expected = -1.0 / 27.0 + 1.0 / 125.0
+    assert result == pytest.approx(expected)
 
 
 @pytest.mark.parametrize("j", [1, 2, 3])
@@ -41,7 +44,7 @@ def test_get_f_hat_true_sin2x_j2_positive() -> None:
     """For f(x)=sin(2x), Fourier coefficient j=2 should be positive (dominant mode)."""
 
     def f_sin2(x: float) -> float:
-        return np.sin(2 * x)
+        return float(np.sin(2 * x))
 
     result = get_f_hat_true(2, f_sin2)
     assert result > 0
@@ -57,8 +60,8 @@ def test_compute_t_vec_shape_and_dtype(n: int, T: float) -> None:
 
 
 @pytest.mark.parametrize("n,T", [(3, 1.0), (4, 2.0)])
-def test_compute_t_vec_positive_and_increasing(n: int, T: float) -> None:
-    """compute_t_vec returns strictly positive, strictly increasing values."""
+def test_compute_t_vec_positive_and_decreasing(n: int, T: float) -> None:
+    """compute_t_vec returns strictly positive, strictly decreasing values."""
     t_vec = compute_t_vec(n, T)
     assert np.all(t_vec > 0)
-    assert np.all(np.diff(t_vec) > 0)
+    assert np.all(np.diff(t_vec) < 0)

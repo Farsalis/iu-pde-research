@@ -14,6 +14,7 @@ from __future__ import annotations
 import statistics
 import time
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -25,7 +26,7 @@ from iu_pde_research.core import (
 try:
     import jax
 except ImportError:  # pragma: no cover - benchmark script only
-    jax = None  # type: ignore[assignment]
+    jax = None
 
 
 @dataclass
@@ -37,7 +38,7 @@ class BenchmarkConfig:
     repeats: int = 3
 
 
-def _time_call(func, *args, repeats: int = 3):
+def _time_call(func: Any, *args: Any, repeats: int = 3) -> list[float]:
     """Return list of elapsed times in seconds for repeated calls."""
     times: list[float] = []
     for _ in range(repeats):
@@ -97,7 +98,7 @@ def run_benchmark(cfg: BenchmarkConfig) -> None:
     print(f"CPU  mean = {cpu_mean:.4f}  std = {cpu_std:.4f}")
     print(f"JAX  mean = {jax_mean:.4f}  std = {jax_std:.4f}")
     if jax_mean > 0.0:
-        print(f"Speedup (CPU / JAX) ≈ {cpu_mean / jax_mean:.2f}×")
+        print(f"Speedup (CPU / JAX) ~= {cpu_mean / jax_mean:.2f}x")
 
     if jax is not None:
         device_str = ", ".join(str(d) for d in jax.devices())
@@ -107,4 +108,3 @@ def run_benchmark(cfg: BenchmarkConfig) -> None:
 if __name__ == "__main__":  # pragma: no cover - manual benchmark
     cfg = BenchmarkConfig()
     run_benchmark(cfg)
-

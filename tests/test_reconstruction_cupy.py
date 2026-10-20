@@ -9,7 +9,7 @@ import pytest
 
 cupy = pytest.importorskip("cupy")
 
-from iu_pde_research.core import (  # noqa: E402
+from iu_pde_research.core import (
     compute_modified_t_j_nonhomogeneous,
     compute_modified_t_j_nonhomogeneous_cupy,
 )
@@ -41,10 +41,7 @@ def test_compute_modified_t_j_nonhomogeneous_cupy_matches_cpu(
 ) -> None:
     """CuPy and CPU implementations agree for small n on default f_true."""
     f_true_cpu, bar_cpu = compute_modified_t_j_nonhomogeneous(n, T, x0, x_grid)
-    f_true_cupy, bar_cupy = compute_modified_t_j_nonhomogeneous_cupy(
-        n, T, x0, x_grid
-    )
+    f_true_cupy, bar_cupy = compute_modified_t_j_nonhomogeneous_cupy(n, T, x0, x_grid)
 
     np.testing.assert_allclose(f_true_cpu, f_true_cupy, rtol=1e-6, atol=1e-7)
     np.testing.assert_allclose(bar_cpu, bar_cupy, rtol=1e-5, atol=1e-6)
-
